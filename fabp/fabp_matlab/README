@@ -1,0 +1,27 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Unifying Guilt-by-Association Approaches: Theorems and Fast Algorithms  %
+% By Danai Koutra, Tai-You Ke, U Kang, Duen Horng Polo Chau, Hsing-Kuo    %
+%  Kenneth Pao, and Christos Faloutsos.                                   %
+% Proceedings of the ECML/PKDD 2011, (2011)                               %
+%                                                                         %
+% Online version: http://www.cs.cmu.edu/~dkoutra/papers/fabp_pkdd2011.pdf %
+% Source: http://www.cs.cmu.edu/~dkoutra/pub.htm                          %
+%                                                                         %
+% Code by: Danai Koutra                                                   %
+% Contact: danai@cs.cmu.edu                                               %
+%                                                                         %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                         %
+% Implementation of Fast Belief Propagation (FaBP)                        %
+%  for node classification in graphs.                                     %
+%                                                                         %
+% Required Files:                                                         %
+%  DATA/A.mat: the SPARSE nxn adjacency matrix A of the input graph.      %
+%                                                                         %     
+%  DATA/pseudopriors.mat: nx1 vector with the prior beliefs (labels).     %
+%                         Range of initial labels                         %
+%                          0: unknown label                               %
+%                          1: GOOD (e.g., not spam)                       %
+%                          2: BAD  (e.g., spam)                           %
+%                                                                         %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
