@@ -71,7 +71,7 @@ def analyse():
                    groundTruth=groundTruth, alllabels=alllabels)
     label.compareOutWithGroundTruth()
 
-
+## analyse according to the key functions identified by BP algorithm
 def analyse_naive():
     #results = np.loadtxt(open("data/versiondetect/beliefEnd.txt", "r"))[603962:]
 
@@ -103,22 +103,33 @@ def preprocessing_label():
     p.dump(allLabel, open("data/versiondetect/test1/alllabels_withnginx.p", "w"))
 
 
+
+## for each function, choose similar functions according to the similarity distribution of candidiate similar functions
+## choose the cluster of functions with the highest similarity scores
 def choose_threshold():
     queryPath = 'data/versiondetect/test1/test_kNN.p'
+    #query stores the query knn: each line is [(query_idx, query_func_name), (func_idx, func_name), similarity]
     query = p.load(open(queryPath, 'r'))
+
+    #temporarily stores the similarity distribution of candidiate similar functions
     funcs = dict()
+    #for each function, choose similar functions according to the knn
     chosenFuncs = []
+
+    #stores the name of "each function"
     funcList = []
+
     lastFunc = ''
     for i in query:
         if i[0][1] != lastFunc and lastFunc != '':
             keylist = funcs.keys()
-            #pdb.set_trace()
+            #sort according to keys
             keylist.sort()
-            #pdb.set_trace()
             if len(funcs[keylist[-1]]) <= 67:
+                #append the functions with highest similarity score
                 chosenFuncs.append(funcs[keylist[-1]])
             else:
+                #ignore the short functions which is simiar to too many functions
                 chosenFuncs.append([])
             funcList.append(lastFunc)
             print lastFunc
@@ -144,7 +155,7 @@ def choose_threshold():
     funcList.append(lastFunc)
     return chosenFuncs, funcList
 
-
+## detect the version simply according to the vote for each version
 def analyse_labelcount():
     chosenFuncs, funcList = choose_threshold()
     alllabels = p.load(
