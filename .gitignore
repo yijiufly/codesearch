@@ -1,7 +1,6 @@
 ./junto/examples/simple/data/matrix_RW.txt
-./sslh/mydata/priorBeliefs.txt
-./sslh/mydata/belief.txt
-./sslh/mydata/matrix_RW.txt
-./sslh/mydata/funcsimilarity3.h5
 ./fabp/data/funcsimilarity.h5
-./funcsimilarity.h5
+*.pyc
+fabp/
+junto/
+data/

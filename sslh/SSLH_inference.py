@@ -524,4 +524,3 @@ def beliefPropagation(X, W, P,
         return F2, actualNumIt, actualPercentageConverged
     else:
         return np.array(listF), actualNumIt, listConverged
-
