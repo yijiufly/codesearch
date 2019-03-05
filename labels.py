@@ -146,36 +146,51 @@ class Labels:
         print len(thresholds)
         lastbinaryname = ''
         binaryidx = 0
-        count = dict()
+        tempFuncList = []
 
         for idx, line in enumerate(self.funcNameList):
             binaryname = line.rstrip().split('{')[0]
-
-            #for each binary, print out the results
             if binaryname != lastbinaryname and lastbinaryname != '':
+                #count label distributions
                 print "\n"
                 print lastbinaryname
                 print "predicted label"
+                count = dict()
+                for funcList in tempFuncList:
+                    for predicted_label in funcList:
+                        if predicted_label in count:
+                            count[predicted_label] += 1
+                        else:
+                            count[predicted_label] = 1
+
                 sorted_count = sorted(count.items(), key=lambda x: x[1], reverse=True)
                 print sorted_count
-                print sorted_count[:2]
 
-                count = dict()
+                #exclude mutual exclusive ones
+                selected = []
+                while(sorted_count != []):
+                    selected.append(sorted_count.pop(0)[0])
+                    exclusive = set()
+                    for funcList in tempFuncList:
+                        if selected[-1] in funcList:
+                            exclusive = exclusive.union(set(funcList))
+                    #pdb.set_trace()
+                    for func in exclusive:
+                        func_count = count[func]
+                        if (func, func_count) in sorted_count:
+                            sorted_count.remove((func, func_count))
+
+
+                print "after exclude labels"
+                print selected
+
+                tempFuncList = []
                 binaryidx += 1
 
-
+            tmp = []
             for threshold in thresholds[idx]:
                 predicted_label = threshold.rstrip().split('{')[0].rsplit('_',1)[0]
-                if predicted_label in count:
-                    count[predicted_label] += 1
-                else:
-                    count[predicted_label] = 1
+                tmp.append(predicted_label)
+            tempFuncList.append(tmp)
 
             lastbinaryname = binaryname
-
-        print "\n"
-        print lastbinaryname
-        print "predicted label"
-        sorted_count = sorted(count.items(), key=lambda x: x[1], reverse=True)
-        print sorted_count
-        print sorted_count[:2]
