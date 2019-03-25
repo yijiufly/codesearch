@@ -34,7 +34,7 @@ class db:
         # This will set the dimension of the lshash only the first time, not when
         # using the configuration loaded from redis. Use redis storage to store
         # buckets.
-        N = 100
+        N = 214
         nearest = NearestFilter(N)
         self.engine = Engine(
             64, lshashes=[self.lshash], storage=self.redis_storage, vector_filters=[nearest])

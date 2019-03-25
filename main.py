@@ -6,7 +6,10 @@ import cPickle as p
 import sys
 import operator
 import pdb
-
+from binary import TestBinary
+from library import Library
+import lshknn
+import os
 
 def loadkNNGraph(querykNNPath=None):
     knn = []
@@ -106,8 +109,8 @@ def preprocessing_label():
 
 ## for each function, choose similar functions according to the similarity distribution of candidiate similar functions
 ## choose the cluster of functions with the highest similarity scores
-def choose_threshold():
-    queryPath = 'data/versiondetect/test1/test_kNN.p'
+def choose_threshold(threshold=0.999, verbose=True):
+    queryPath = 'data/versiondetect/test2/test_kNN.p'
     #query stores the query knn: each line is [(query_idx, query_func_name), (func_idx, func_name), similarity]
     query = p.load(open(queryPath, 'r'))
 
@@ -125,16 +128,19 @@ def choose_threshold():
             keylist = funcs.keys()
             #sort according to keys
             keylist.sort()
-            if len(funcs[keylist[-1]]) <= 67:
+            if keylist[-1] > threshold:
                 #append the functions with highest similarity score
                 chosenFuncs.append(funcs[keylist[-1]])
+                if verbose:
+                    print keylist[-1]
             else:
                 #ignore the short functions which is simiar to too many functions
                 chosenFuncs.append([])
             funcList.append(lastFunc)
-            print lastFunc
-            print chosenFuncs[-1]
-            print '\n'
+            if verbose:
+                print lastFunc
+                print chosenFuncs[-1]
+                print '\n'
             funcs = dict()
 
         key = round(i[2], 8)
@@ -157,13 +163,28 @@ def choose_threshold():
 
 ## detect the version simply according to the vote for each version
 def analyse_labelcount():
-    chosenFuncs, funcList = choose_threshold()
-    alllabels = p.load(
-        open("data/versiondetect/test1/alllabels_withnginx.p", "r"))
+    chosenFuncs, funcList = choose_threshold(verbose=False)
+    #alllabels = p.load(
+    #    open("data/versiondetect/test2/alllabels.p", "r"))
 
-    label = Labels(funcNameList=funcList, alllabels=alllabels)
-    label.analyse_labelcount(chosenFuncs)
+    #label = Labels(funcNameList=funcList)
+    #label.analyse_onebinary_labelcount(chosenFuncs)
+    return chosenFuncs, funcList
 
+def test_one_binary():
+    path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.dot'
+    path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam'
+    testbin = TestBinary(path, path2)
+    chosenFuncs, funcList = choose_threshold(verbose=False)
+    testbin.getRank1Neighbors(chosenFuncs, funcList)
+    path_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl/'
+    for folder in os.listdir(path_openssl):
+        path11 = os.path.join(path_openssl, folder, 'libcrypto.so.dot')
+        path12 = os.path.join(path_openssl, folder, 'libcrypto.so.ida.nam')
+        lib = Library(path11, path12)
+        lib.libraryName = folder.split('-')[1]+'_libcrypto.so'
+        #print lib.libraryName
+        testbin.compareSameEdges(lib)
 
 
 if __name__ == '__main__':
@@ -182,3 +203,5 @@ if __name__ == '__main__':
         analyse_naive()
     elif choice == 6:
         analyse_labelcount()
+    elif choice == 7:
+        test_one_binary()
