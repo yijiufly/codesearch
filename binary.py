@@ -91,7 +91,7 @@ class TestBinary(Binary):
         for edge in self.callgraphEdges:
             func_source = self.ind2FuncName[edge[0]]
             func_destination = self.ind2FuncName[edge[1]]
-            # if func_source == 'x509_name_ex_new':
+            # if func_source == 'ec_GFp_mont_group_clear_finish' and func_destination == 'BN_MONT_CTX_free':
             #     pdb.set_trace()
             if func_source not in self.func2Neighbors or func_destination not in self.func2Neighbors:
                 continue
@@ -106,14 +106,19 @@ class TestBinary(Binary):
                 if predicted_label == library.libraryName:
                     desPredictedFunction.append(predicted_function)
                     #break
+            # if func_source == 'ec_GFp_mont_group_clear_finish' and func_destination == 'BN_MONT_CTX_free':
+            #     pdb.set_trace()
             #if both of them has label L.libraryName
-            if srcPredictedFunction is not [] and desPredictedFunction is not []:
-                #if L also has this edge
-                for src in srcPredictedFunction:
-                    for des in desPredictedFunction:
-                        if [library.funcName2Ind[src], library.funcName2Ind[des], 1] in library.callgraphEdges:
-                            # print src, des
-                            # print self.ind2FuncName[edge[0]], self.ind2FuncName[edge[1]]
-                            edgeCount += 1
-
-        print library.libraryName, edgeCount
+            #if srcPredictedFunction is not [] and desPredictedFunction is not []:
+            #if L also has this edge
+            tempCount = 0
+            for src in srcPredictedFunction:
+                for des in desPredictedFunction:
+                    if [library.funcName2Ind[src], library.funcName2Ind[des], 1] in library.callgraphEdges:
+                        #print src, des
+                        tempCount += 1
+            if tempCount > 0:
+                edgeCount += 1
+                #print edge[0], self.ind2FuncName[edge[0]], edge[1], self.ind2FuncName[edge[1]]
+        #print edgeCount
+        return library.libraryName, edgeCount

@@ -3,8 +3,9 @@ from nearpy.hashes import RandomBinaryProjections, RandomDiscretizedProjections
 import numpy as np
 from redis import Redis
 from nearpy.storage import RedisStorage
-from nearpy.filters import NearestFilter, UniqueFilter
+from nearpy.filters import NearestFilter, UniqueFilter, RankNFilter
 import pickle as p
+import time
 
 
 class db:
@@ -34,10 +35,10 @@ class db:
         # This will set the dimension of the lshash only the first time, not when
         # using the configuration loaded from redis. Use redis storage to store
         # buckets.
-        N = 214
-        nearest = NearestFilter(N)
+        N = 1
+        rank1 = RankNFilter(N)
         self.engine = Engine(
-            64, lshashes=[self.lshash], storage=self.redis_storage, vector_filters=[nearest])
+            64, lshashes=[self.lshash], storage=self.redis_storage, vector_filters=[rank1])
 
     def _countTotalNum(self, verbose=False):
         count = 0
@@ -64,6 +65,7 @@ class db:
         self.redis_storage.store_hash_configuration(self.lshash)
 
     def querying(self, query_vectors, names):
+        start_time = time.time()
         N_query = []
         count = self._countTotalNum()
         for idx, q in enumerate(query_vectors):
@@ -71,14 +73,14 @@ class db:
             N = self.engine.neighbours(q)
             for item in N:
                 N_query.append([(idx + count, names[idx]), item[1], 1 - item[2]])#the list has the format: [(query_idx, query_func_name), (result_idx, result_func_name), similarity(which is 1-distance)]
-
-            if idx%10000 == 9999:
-                print('has done: ' + str(idx))
+            #
+            # if idx%10000 == 9999:
+            #     print('has done: ' + str(idx))
                 #f = open('data/versiondetect/train_kNN_' + str(idx) + '.p', 'w')
                 #p.dump(N_query, f)
                 #f.close()
                 #N_query = []
-        print('all has done: ')
+        print('all has done, time: %s' % (time.time() - start_time))
         #f = open('data/versiondetect/train_kNN_end.p', 'w')
         #p.dump(N_query, f)
         #f.close()

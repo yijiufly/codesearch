@@ -8,8 +8,10 @@ import operator
 import pdb
 from binary import TestBinary
 from library import Library
-import lshknn
+from lshknn import queryForOneBinary
 import os
+import time
+import traceback
 
 def loadkNNGraph(querykNNPath=None):
     knn = []
@@ -109,13 +111,13 @@ def preprocessing_label():
 
 ## for each function, choose similar functions according to the similarity distribution of candidiate similar functions
 ## choose the cluster of functions with the highest similarity scores
-def choose_threshold(threshold=0.999, verbose=True):
-    queryPath = 'data/versiondetect/test2/test_kNN.p'
+def choose_threshold(queryPath, threshold=0.999, verbose=True):
+    #queryPath = 'data/versiondetect/test2/test_kNN.p'
     #query stores the query knn: each line is [(query_idx, query_func_name), (func_idx, func_name), similarity]
     query = p.load(open(queryPath, 'r'))
 
     #temporarily stores the similarity distribution of candidiate similar functions
-    funcs = dict()
+    funcs = []
     #for each function, choose similar functions according to the knn
     chosenFuncs = []
 
@@ -125,45 +127,26 @@ def choose_threshold(threshold=0.999, verbose=True):
     lastFunc = ''
     for i in query:
         if i[0][1] != lastFunc and lastFunc != '':
-            keylist = funcs.keys()
-            #sort according to keys
-            keylist.sort()
-            if keylist[-1] > threshold:
-                #append the functions with highest similarity score
-                chosenFuncs.append(funcs[keylist[-1]])
-                if verbose:
-                    print keylist[-1]
-            else:
-                #ignore the short functions which is simiar to too many functions
-                chosenFuncs.append([])
+            chosenFuncs.append(funcs)
             funcList.append(lastFunc)
             if verbose:
                 print lastFunc
                 print chosenFuncs[-1]
                 print '\n'
-            funcs = dict()
+            funcs = []
 
-        key = round(i[2], 8)
-        #pdb.set_trace()
-        if key in funcs:
-            funcs[key].append(i[1][1])
-        else:
-            funcs[key] = [i[1][1]]
-
+        if i[2] > threshold:
+            funcs.append(i[1][1])
         lastFunc = i[0][1]
 
-    keylist = funcs.keys()
-    keylist.sort()
-    if len(funcs[keylist[-1]]) <= 67:
-        chosenFuncs.append(funcs[keylist[-1]])
-    else:
-        chosenFuncs.append([])
+
+    chosenFuncs.append(funcs)
     funcList.append(lastFunc)
     return chosenFuncs, funcList
 
 ## detect the version simply according to the vote for each version
-def analyse_labelcount():
-    chosenFuncs, funcList = choose_threshold(verbose=False)
+def analyse_labelcount(queryPath):
+    chosenFuncs, funcList = choose_threshold(queryPath, verbose=True)
     #alllabels = p.load(
     #    open("data/versiondetect/test2/alllabels.p", "r"))
 
@@ -171,21 +154,70 @@ def analyse_labelcount():
     #label.analyse_onebinary_labelcount(chosenFuncs)
     return chosenFuncs, funcList
 
-def test_one_binary():
-    path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.dot'
-    path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam'
+def loadFiles(PATH, ext=None):  # use .ida or .emb for ida file and embedding file
+    filenames = []
+    filenames = [f for f in os.listdir(PATH) if f.endswith(ext)]
+    return filenames
+
+def test_one_binary(path, path2, queryPath, libs):
+    #path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.dot'
+    #path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam'
     testbin = TestBinary(path, path2)
-    chosenFuncs, funcList = choose_threshold(verbose=False)
+    chosenFuncs, funcList = choose_threshold(queryPath, verbose=False)
     testbin.getRank1Neighbors(chosenFuncs, funcList)
+    results=[]
+    for lib in libs:
+        libraryName, edgeCount = testbin.compareSameEdges(lib)
+        results.append([libraryName, edgeCount])
+    return results
+
+def load_libs():
+    libs=[]
+    path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/idafiles'
+    for folder in os.listdir(path_zlib):
+        dotfile = loadFiles(os.path.join(path_zlib, folder), ext='.dot')[0]
+        namfile = loadFiles(os.path.join(path_zlib, folder), ext='.nam')[0]
+        path11 = os.path.join(path_zlib, folder, dotfile)
+        path12 = os.path.join(path_zlib, folder, namfile)
+        lib = Library(path11, path12)
+        lib.libraryName = dotfile.rsplit('.',1)[0]
+        libs.append(lib)
+        print 'load ' + lib.libraryName
+
     path_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl/'
     for folder in os.listdir(path_openssl):
         path11 = os.path.join(path_openssl, folder, 'libcrypto.so.dot')
         path12 = os.path.join(path_openssl, folder, 'libcrypto.so.ida.nam')
         lib = Library(path11, path12)
         lib.libraryName = folder.split('-')[1]+'_libcrypto.so'
-        #print lib.libraryName
-        testbin.compareSameEdges(lib)
+        libs.append(lib)
+        print 'load ' + lib.libraryName
+    return libs
 
+def test_some_binary():
+    libs = load_libs()
+    dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles'
+    for folder in os.listdir(dir):
+        start_time = time.time()
+        try:
+            dotfile = loadFiles(os.path.join(dir, folder), ext='.dot')[0]
+            namfile = loadFiles(os.path.join(dir, folder), ext='.nam')[0]
+        except Exception:
+            print traceback.format_exc()
+            continue
+        path = os.path.join(dir, folder, dotfile)
+        path2 = os.path.join(dir, folder, namfile)
+        outpath = os.path.join(dir, folder, 'test_kNN_0403.p')
+        outpath2 = os.path.join(dir, folder, 'out_0403.p')
+        if os.path.isfile(outpath2):
+            continue
+        if os.path.isfile(outpath):
+            pass
+        else:
+            queryForOneBinary(path2, outpath)
+        results = test_one_binary(path, path2, outpath, libs)
+        p.dump(results, open(outpath2, 'w'))
+        print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == '__main__':
     choice = int(sys.argv[1])
@@ -198,10 +230,23 @@ if __name__ == '__main__':
     elif choice == 3:
         query()
     elif choice == 4:
-        analyse()
+        path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/nginx-{openssl-0.9.8t}{zlib-1.2.8}.ida.nam'
+        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/test_kNN_0403.p'
+        queryForOneBinary(path2, queryPath)
     elif choice == 5:
         analyse_naive()
     elif choice == 6:
-        analyse_labelcount()
+        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/test_kNN_0403.p'
+        analyse_labelcount(queryPath)
     elif choice == 7:
-        test_one_binary()
+        path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/nginx-{openssl-0.9.8t}{zlib-1.2.8}.dot'
+        path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/nginx-{openssl-0.9.8t}{zlib-1.2.8}.ida.nam'
+        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/test_kNN_0403.p'
+        folder = 'openssl-OpenSSL_0_9_8u'
+        path11 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.dot')
+        path12 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.ida.nam')
+        lib = Library(path11, path12)
+        lib.libraryName = folder.split('-')[1]+'_libcrypto.so'
+        test_one_binary(path, path2, queryPath, [lib])
+    elif choice == 8:
+        test_some_binary()

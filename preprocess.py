@@ -32,9 +32,9 @@ def do_preprocessing(outpath, binary_path, binary_name, script_path):
     cwd = os.getcwd()
     print("test4")
 
-    # cmd = '/opt/ida-7.1/' + 'idat64 -B ' + binary_full_path
-    # print cmd
-    # subprocess.call(shlex.split(cmd))
+    cmd = '/opt/ida-7.1/' + 'idat64 -B ' + binary_full_path
+    print cmd
+    subprocess.call(shlex.split(cmd))
     if os.path.isfile(i64_out_path):
         #cmd = 'QT_X11_NO_MITSHM=1 ./ida/idaq -A -S\"' + cwd + '/raw-feature-extractor/preprocessing_ida.py ' + outpath + '\" ' + binary_full_path
         #cmd = '/home/yijiufly/Downloads/codesearch/ida/idal64 -c -A -S\"' + cwd + '/raw_feature_extractor/preprocessing_ida.py ' + outpath + '\" ' + binary_full_path
@@ -107,8 +107,8 @@ if __name__ == '__main__':
     print(out_path + '\n' + bin_path + '\n' + bin_name)
 
     #ida_path = do_preprocessing(out_path, bin_path, bin_name, 'rawfeatureextractor' + '/extractor/preprocessing_ida.py')
-    #ida_path = do_preprocessing(out_dir, bin_path, bin_name, 'rawfeatureextractor/extractor/gen_callgraph.py')
-    ida_path = get_dot(out_dir, bin_path, bin_name)
+    #ida_path = do_preprocessing(out_path, bin_path, bin_name, 'rawfeatureextractor/extractor/gen_callgraph.py')
+    ida_path = get_dot(out_path, bin_path, bin_name)
     print("test3")
 
     # check wheter ida processing done or not
