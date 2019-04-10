@@ -32,9 +32,38 @@ class Binary:
     def getGraphFromPath(self, path):
         graph = pydot.graph_from_dot_file(path)
         edgeList = graph.get_edge_list()
-        self.callgraphEdges = []
+        linklistgraph = dict()
+        smallnodes = dict()
+        #self.callgraphEdges = []
         for edge in edgeList:
-            self.callgraphEdges.append([edge.get_source(), edge.get_destination(), 1])
+            src = edge.get_source()
+            des = edge.get_destination()
+            if self.funcNameFilted[self.ind2FuncName[src]] == -1:
+                if src in smallnodes:
+                    smallnodes[src].append((des, 1))
+                else:
+                    smallnodes[src] = [(des, 1)]
+            else:
+                if src in linklistgraph:
+                    linklistgraph[src].append((des, 1))
+                else:
+                    linklistgraph[src] = [(des, 1)]
+
+        keylist = linklistgraph.keys()
+        findsmallnodes = -1
+        while findsmallnodes != 0:
+            findsmallnodes = 0
+            for src in keylist:
+                for (des, distance) in linklistgraph[src]:
+                    if self.funcNameFilted[self.ind2FuncName[des]] == -1:
+                        findsmallnodes += 1
+                        linklistgraph[src].remove((des, distance))
+                        if des in smallnodes:
+                            for (des2, distance2) in smallnodes[des]:
+                                if (des2, distance2 + distance) not in linklistgraph[src]:
+                                    linklistgraph[src].append((des2, distance2 + distance))
+
+        self.callgraphEdges = linklistgraph
 
     def addAdjacentEdges(self, path):
         adjacentInfo = p.load(open(path,'r'))
@@ -54,8 +83,8 @@ class TestBinary(Binary):
     def __init__(self, path, path2):
         print 'init testing binary'
         self.generatefuncNameFull(path)
-        self.getGraphFromPath(path)
         self.generatefuncNameFilted(path2)
+        self.getGraphFromPath(path)
 
     def getRank1Neighbors(self, selectedNeighbors, funcNameList):
         print 'analyse label count'
@@ -88,37 +117,41 @@ class TestBinary(Binary):
 
     def compareSameEdges(self, library):
         edgeCount = 0
-        for edge in self.callgraphEdges:
-            func_source = self.ind2FuncName[edge[0]]
-            func_destination = self.ind2FuncName[edge[1]]
-            # if func_source == 'ec_GFp_mont_group_clear_finish' and func_destination == 'BN_MONT_CTX_free':
-            #     pdb.set_trace()
-            if func_source not in self.func2Neighbors or func_destination not in self.func2Neighbors:
-                continue
-            srcPredictedFunction = []
-            desPredictedFunction = []
-            #find whether functions in this edge have label L.libraryName or not
-            for (predicted_label, predicted_function) in self.func2Neighbors[func_source]:
-                if predicted_label == library.libraryName:
-                    srcPredictedFunction.append(predicted_function)
-                    #break
-            for (predicted_label, predicted_function) in self.func2Neighbors[func_destination]:
-                if predicted_label == library.libraryName:
-                    desPredictedFunction.append(predicted_function)
-                    #break
-            # if func_source == 'ec_GFp_mont_group_clear_finish' and func_destination == 'BN_MONT_CTX_free':
-            #     pdb.set_trace()
-            #if both of them has label L.libraryName
-            #if srcPredictedFunction is not [] and desPredictedFunction is not []:
-            #if L also has this edge
-            tempCount = 0
-            for src in srcPredictedFunction:
-                for des in desPredictedFunction:
-                    if [library.funcName2Ind[src], library.funcName2Ind[des], 1] in library.callgraphEdges:
-                        #print src, des
-                        tempCount += 1
-            if tempCount > 0:
-                edgeCount += 1
-                #print edge[0], self.ind2FuncName[edge[0]], edge[1], self.ind2FuncName[edge[1]]
-        #print edgeCount
+        keylist = self.callgraphEdges.keys()
+        for edge_src in keylist:
+            for (edge_des, distance) in self.callgraphEdges[edge_src]:
+                func_source = self.ind2FuncName[edge_src]
+                func_destination = self.ind2FuncName[edge_des]
+                # if func_source == 'ec_GFp_mont_group_clear_finish' and func_destination == 'BN_MONT_CTX_free':
+                #     pdb.set_trace()
+                if func_source not in self.func2Neighbors or func_destination not in self.func2Neighbors:
+                    continue
+                srcPredictedFunction = []
+                desPredictedFunction = []
+                #find whether functions in this edge have label L.libraryName or not
+                for (predicted_label, predicted_function) in self.func2Neighbors[func_source]:
+                    if predicted_label == library.libraryName:
+                        srcPredictedFunction.append(predicted_function)
+                        #break
+                for (predicted_label, predicted_function) in self.func2Neighbors[func_destination]:
+                    if predicted_label == library.libraryName:
+                        desPredictedFunction.append(predicted_function)
+                        #break
+                # if func_source == 'ec_GFp_mont_group_clear_finish' and func_destination == 'BN_MONT_CTX_free':
+                #     pdb.set_trace()
+                #if both of them has label L.libraryName
+                #if srcPredictedFunction is not [] and desPredictedFunction is not []:
+                #if L also has this edge
+                tempCount = 0
+                for src in srcPredictedFunction:
+                    if library.funcName2Ind[src] not in library.callgraphEdges:
+                        continue
+                    for des in desPredictedFunction:
+                        if (library.funcName2Ind[des], distance) in library.callgraphEdges[library.funcName2Ind[src]]:
+                            #print src, des
+                            tempCount += 1
+                if tempCount > 0:
+                    edgeCount += 1
+                    #print edge_src, self.ind2FuncName[edge_src], edge_des, self.ind2FuncName[edge_des]
+        print library.libraryName, edgeCount
         return library.libraryName, edgeCount

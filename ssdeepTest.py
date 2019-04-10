@@ -274,14 +274,14 @@ def calc_similarity_matrix(node_id):
 
 
 def decompose(embsample):
-    PATH = "/rhome/lgao027/bigdata/binaryssl/" + embsample
-    NAM_PATH = "/rhome/lgao027/bigdata/binaryssl/" + embsample[:-3] + 'nam'
-    OUTPATH = "/rhome/lgao027/bigdata/binaryssl/funcemb_output/"
+    PATH = "/home/yijiufly/Downloads/codesearch/data/zlib/zlib-embs-O2/" + embsample
+    NAM_PATH = "/home/yijiufly/Downloads/codesearch/data/zlib/zlib-embs-O2/" + embsample[:-3] + 'nam'
+    OUTPATH = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/funcemb_output_zlib_O2/"
     f = open(PATH, "rb")
     funcs = p.load(f)
     nams = p.load(open(NAM_PATH, "rb"))
     for i in xrange(len(funcs)):
-        OUTFILE = OUTPATH + embsample[8:-8] + "{" + nams[i] + "}.emb"
+        OUTFILE = OUTPATH + embsample[:-8] + "O2{" + nams[i] + "}.emb"
         #print OUTFILE
         file = open(OUTFILE,'wb')
         p.dump(funcs[i], file)
@@ -289,7 +289,7 @@ def decompose(embsample):
 
 def decomposebinary():
     try:
-        pool = Pool(processes=10)
+        pool = Pool(processes=2)
         res = pool.map(decompose, newNameList)
     except Exception:
         print traceback.format_exc()
@@ -376,7 +376,7 @@ def main():
     # ### load embedding filenames listdir
     #embFilenames    = loadFiles("/rhome/lgao027/bigdata/binary/openssl/openssl_emb_exclude_smallfuncs/", ".emb")
 
-    embFilenames    = loadFiles("/home/yijiufly/Downloads/codesearch/scripts/out/", ".emb")
+    embFilenames    = loadFiles("/home/yijiufly/Downloads/codesearch/data/zlib/zlib-embs-O2", ".emb")
     global newNameList
     newNameList = embFilenames
 

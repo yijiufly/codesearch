@@ -15,7 +15,7 @@ def _get_binary_hash(file_path):
     return md5.hexdigest()
 
 
-def do_preprocessing(outpath, binary_path, binary_name, script_path):
+def gen_callgraph(outpath, binary_path, binary_name, script_path):
     binary_full_path = os.path.join(binary_path, binary_name)
     i64_out_path = binary_full_path + '.i64'
     out_path = os.path.join(outpath, binary_name + '.gdl')
@@ -45,6 +45,34 @@ def do_preprocessing(outpath, binary_path, binary_name, script_path):
         subprocess.call(shlex.split(cmd))
         if os.path.isfile(out_path):
             return out_path
+
+    return
+
+
+def do_preprocessing(outpath, binary_path, binary_name, script_path):
+    binary_full_path = os.path.join(binary_path, binary_name)
+    out_path = os.path.join(outpath, binary_name + '.ida')
+    #out_path = os.path.join(outpath, binary_name)
+
+    # binary already analyized
+    if os.path.exists(outpath) and os.path.isfile(out_path):
+        return out_path
+
+    if not os.path.exists(outpath):
+        print("mkdir " + outpath)
+        os.mkdir(outpath)
+    # calling ida pro shell command
+    cwd = os.getcwd()
+    print("test4")
+
+    #cmd = 'QT_X11_NO_MITSHM=1 ./ida/idaq -A -S\"' + cwd + '/raw-feature-extractor/preprocessing_ida.py ' + outpath + '\" ' + binary_full_path
+    #cmd = '/home/yijiufly/Downloads/codesearch/ida/idal64 -c -A -S\"' + cwd + '/raw_feature_extractor/preprocessing_ida.py ' + outpath + '\" ' + binary_full_path
+    cmd = '/opt/ida-7.1/' + 'idat64 -c -A -S\"' + '/home/yijiufly/Downloads/codesearch/rawfeatureextractor' + '/extractor/preprocessing_ida.py ' + outpath + '\" ' + binary_full_path
+
+    print cmd
+    subprocess.call(shlex.split(cmd))
+    if os.path.isfile(out_path):
+        return out_path
 
     return
 
@@ -107,8 +135,8 @@ if __name__ == '__main__':
     print(out_path + '\n' + bin_path + '\n' + bin_name)
 
     #ida_path = do_preprocessing(out_path, bin_path, bin_name, 'rawfeatureextractor' + '/extractor/preprocessing_ida.py')
-    #ida_path = do_preprocessing(out_path, bin_path, bin_name, 'rawfeatureextractor/extractor/gen_callgraph.py')
-    ida_path = get_dot(out_path, bin_path, bin_name)
+    #ida_path = gen_callgraph(out_path, bin_path, bin_name, 'rawfeatureextractor/extractor/gen_callgraph.py')
+    ida_path = get_dot(out_dir, bin_path, bin_name)
     print("test3")
 
     # check wheter ida processing done or not

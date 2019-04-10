@@ -125,20 +125,20 @@ if __name__ == '__main__':
     # hashMap = addToHashMap(hashMap, add_data, newNameList)
     # hashMap = addToHashMap(hashMap, [])
     zlib_data, namelist = loadDataFromFolder(
-        'data/versiondetect/test2/funcemb_output_zlib')
+        'data/versiondetect/test2/funcemb_output_zlib_O2')
     hashMap = addToHashMap(hashMap, zlib_data, namelist)
     hashMap = addToHashMap(hashMap, [], [])
     # qdata, newNameList = loadQueryData("data/versiondetect/test1/versiondetect_query_list.txt")
     # funcnamepath = os.path.join('data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9', 'nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam')
-    funcnamepath = 'data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam'
-    qdata, newNameList = loadOneQueryBinary(
-        funcnamepath, 'data/versiondetect/test2/funcemb_output_testing/')
+    #funcnamepath = 'data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam'
+    #qdata, newNameList = loadOneQueryBinary(
+    #    funcnamepath, 'data/versiondetect/test2/funcemb_output_testing/')
     # print qdata, newNameList
-    print "Start query for test data"
-    testkNN = doSearch(hashMap, qdata, newNameList)
+    #print "Start query for test data"
+    #testkNN = doSearch(hashMap, qdata, newNameList)
     # for knn in testkNN:
     #    print knn
     # hashMap = addToHashMap(hashMap, [])
     # testkNN = p.load(open("data/versiondetect/kNN.p","r"))
     # N = output_format("data/versiondetect/versiondetect_func_list.txt", testkNN)
-    p.dump(testkNN, open("data/versiondetect/test2/test_kNN.p", "w"))
+    #p.dump(testkNN, open("data/versiondetect/test2/test_kNN.p", "w"))

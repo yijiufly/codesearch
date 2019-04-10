@@ -173,14 +173,14 @@ def test_one_binary(path, path2, queryPath, libs):
 
 def load_libs():
     libs=[]
-    path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/idafiles'
+    path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/idafilesO2'
     for folder in os.listdir(path_zlib):
         dotfile = loadFiles(os.path.join(path_zlib, folder), ext='.dot')[0]
         namfile = loadFiles(os.path.join(path_zlib, folder), ext='.nam')[0]
         path11 = os.path.join(path_zlib, folder, dotfile)
         path12 = os.path.join(path_zlib, folder, namfile)
         lib = Library(path11, path12)
-        lib.libraryName = dotfile.rsplit('.',1)[0]
+        lib.libraryName = dotfile.rsplit('.',1)[0]+'O2'
         libs.append(lib)
         print 'load ' + lib.libraryName
 
@@ -190,6 +190,13 @@ def load_libs():
         path12 = os.path.join(path_openssl, folder, 'libcrypto.so.ida.nam')
         lib = Library(path11, path12)
         lib.libraryName = folder.split('-')[1]+'_libcrypto.so'
+        libs.append(lib)
+        print 'load ' + lib.libraryName
+
+        path11 = os.path.join(path_openssl, folder, 'libssl.so.dot')
+        path12 = os.path.join(path_openssl, folder, 'libssl.so.ida.nam')
+        lib = Library(path11, path12)
+        lib.libraryName = folder.split('-')[1]+'_libssl.so'
         libs.append(lib)
         print 'load ' + lib.libraryName
     return libs
@@ -207,8 +214,8 @@ def test_some_binary():
             continue
         path = os.path.join(dir, folder, dotfile)
         path2 = os.path.join(dir, folder, namfile)
-        outpath = os.path.join(dir, folder, 'test_kNN_0403.p')
-        outpath2 = os.path.join(dir, folder, 'out_0403.p')
+        outpath = os.path.join(dir, folder, 'test_kNN_0409.p')
+        outpath2 = os.path.join(dir, folder, 'out_0409.p')
         if os.path.isfile(outpath2):
             continue
         if os.path.isfile(outpath):
@@ -230,23 +237,25 @@ if __name__ == '__main__':
     elif choice == 3:
         query()
     elif choice == 4:
-        path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/nginx-{openssl-0.9.8t}{zlib-1.2.8}.ida.nam'
-        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/test_kNN_0403.p'
+        path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.ida.nam'
+        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/test_kNN_0408.p'
         queryForOneBinary(path2, queryPath)
     elif choice == 5:
         analyse_naive()
     elif choice == 6:
-        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/test_kNN_0403.p'
+        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/test_kNN_0408.p'
         analyse_labelcount(queryPath)
     elif choice == 7:
-        path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/nginx-{openssl-0.9.8t}{zlib-1.2.8}.dot'
-        path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/nginx-{openssl-0.9.8t}{zlib-1.2.8}.ida.nam'
-        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/3bafa6ff19784d18850f468b2813c5634a1f9b82de2c5db8f68e0b96bd57d7ea/test_kNN_0403.p'
-        folder = 'openssl-OpenSSL_0_9_8u'
+        path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.dot'
+        path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.ida.nam'
+        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/test_kNN_0408.p'
+        folder = 'openssl-OpenSSL_1_0_0s'
         path11 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.dot')
         path12 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.ida.nam')
         lib = Library(path11, path12)
         lib.libraryName = folder.split('-')[1]+'_libcrypto.so'
+        #libs = load_libs()
+        #test_one_binary(path, path2, queryPath, libs)
         test_one_binary(path, path2, queryPath, [lib])
     elif choice == 8:
         test_some_binary()
