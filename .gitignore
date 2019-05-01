@@ -1,6 +1,2 @@
-./junto/examples/simple/data/matrix_RW.txt
-./fabp/data/funcsimilarity.h5
 *.pyc
-fabp/
-junto/
 data/
