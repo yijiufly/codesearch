@@ -5,7 +5,7 @@ import subprocess
 import shlex
 import sys
 import shutil
-
+import glob
 
 def _get_binary_hash(file_path):
     fd = open(file_path, 'rb')
@@ -130,18 +130,28 @@ if __name__ == '__main__':
 
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
+
+    # copy to test3
+    # out_path = os.path.join(out_dir, bin_name)
+    # os.mkdir(out_path)
+    # shutil.copy(bin_full_path, out_path)
+    # for file in glob.iglob(r'/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/'+bhash+'/*.gdl'):
+    #     shutil.copy(file, out_path)
+    # for file in glob.iglob(r'/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/'+bhash+'/*.dot'):
+    #     shutil.copy(file, out_path)
+
     print("test2")
     out_path = os.path.join(out_dir, bhash)
     print(out_path + '\n' + bin_path + '\n' + bin_name)
 
-    #ida_path = do_preprocessing(out_path, bin_path, bin_name, 'rawfeatureextractor' + '/extractor/preprocessing_ida.py')
-    #ida_path = gen_callgraph(out_path, bin_path, bin_name, 'rawfeatureextractor/extractor/gen_callgraph.py')
+    #ida_path = do_preprocessing(out_dir, bin_path, bin_name, 'rawfeatureextractor' + '/extractor/preprocessing_ida.py')
+    ida_path = gen_callgraph(out_dir, bin_path, bin_name, 'rawfeatureextractor/extractor/gen_callgraph.py')
     ida_path = get_dot(out_dir, bin_path, bin_name)
     print("test3")
 
     # check wheter ida processing done or not
     if ida_path is None:
-        print("no ida output")
+        print("no .dot output")
     else:
         print(ida_path)
 

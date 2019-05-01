@@ -1,5 +1,3 @@
-from sslh.test_SSLH_inference import *
-from sslh.analysis import *
 import numpy as np
 from labels import Labels
 import cPickle as p
@@ -8,7 +6,7 @@ import operator
 import pdb
 from binary import TestBinary
 from library import Library
-from lshknn import queryForOneBinary
+from lshknn import queryForOneBinary3Gram, queryForOneBinary2Gram
 import os
 import time
 import traceback
@@ -109,40 +107,6 @@ def preprocessing_label():
 
 
 
-## for each function, choose similar functions according to the similarity distribution of candidiate similar functions
-## choose the cluster of functions with the highest similarity scores
-def choose_threshold(queryPath, threshold=0.999, verbose=True):
-    #queryPath = 'data/versiondetect/test2/test_kNN.p'
-    #query stores the query knn: each line is [(query_idx, query_func_name), (func_idx, func_name), similarity]
-    query = p.load(open(queryPath, 'r'))
-
-    #temporarily stores the similarity distribution of candidiate similar functions
-    funcs = []
-    #for each function, choose similar functions according to the knn
-    chosenFuncs = []
-
-    #stores the name of "each function"
-    funcList = []
-
-    lastFunc = ''
-    for i in query:
-        if i[0][1] != lastFunc and lastFunc != '':
-            chosenFuncs.append(funcs)
-            funcList.append(lastFunc)
-            if verbose:
-                print lastFunc
-                print chosenFuncs[-1]
-                print '\n'
-            funcs = []
-
-        if i[2] > threshold:
-            funcs.append(i[1][1])
-        lastFunc = i[0][1]
-
-
-    chosenFuncs.append(funcs)
-    funcList.append(lastFunc)
-    return chosenFuncs, funcList
 
 ## detect the version simply according to the vote for each version
 def analyse_labelcount(queryPath):
@@ -159,21 +123,20 @@ def loadFiles(PATH, ext=None):  # use .ida or .emb for ida file and embedding fi
     filenames = [f for f in os.listdir(PATH) if f.endswith(ext)]
     return filenames
 
-def test_one_binary(path, path2, queryPath, libs):
+def test_one_binary(binaryName, dotPath, funcembFolder, queryPath, namPath, libs=None):
     #path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.dot'
     #path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam'
-    testbin = TestBinary(path, path2)
-    chosenFuncs, funcList = choose_threshold(queryPath, verbose=False)
-    testbin.getRank1Neighbors(chosenFuncs, funcList)
-    results=[]
-    for lib in libs:
-        libraryName, edgeCount = testbin.compareSameEdges(lib)
-        results.append([libraryName, edgeCount])
-    return results
+    testbin = TestBinary(binaryName, dotPath, funcembFolder)
+    testbin.buildNGram(namPath)
+    if os.path.isfile(queryPath):
+        pass
+    else:
+        queryForOneBinary(testbin.threeGramList, queryPath)
+    testbin.count(queryPath)
 
 def load_libs():
     libs=[]
-    path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/idafilesO2'
+    path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'
     for folder in os.listdir(path_zlib):
         dotfile = loadFiles(os.path.join(path_zlib, folder), ext='.dot')[0]
         namfile = loadFiles(os.path.join(path_zlib, folder), ext='.nam')[0]
@@ -201,6 +164,63 @@ def load_libs():
         print 'load ' + lib.libraryName
     return libs
 
+def test_some_binary_ngram():
+    dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
+    funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
+    for folder in os.listdir(dir):
+        print('\n'+folder)
+        start_time = time.time()
+        try:
+            dotfile = loadFiles(os.path.join(dir, folder), ext='.dot')[0]
+            namfile = loadFiles(os.path.join(dir, folder), ext='.nam')[0]
+        except Exception:
+            print traceback.format_exc()
+            continue
+
+        binaryName = folder
+        dotPath = os.path.join(dir, folder, dotfile)
+        namPath = os.path.join(dir, folder, namfile)
+        #pdb.set_trace()
+
+        #calculate 3gram
+        candidate_output3 = os.path.join(dir, folder, 'test_kNN_0429_3gram.p')
+        count_output3 = os.path.join(dir, folder, 'out_0429_3gram.p')
+
+        candidate_output2 = os.path.join(dir, folder, 'test_kNN_0429_2gram.p')
+        count_output2 = os.path.join(dir, folder, 'out_0429_2gram.p')
+        if os.path.isfile(count_output3) and os.path.isfile(count_output2):
+            continue
+
+        testbin = TestBinary(binaryName, dotPath, funcembFolder)
+        testbin.buildNGram(namPath)
+        if os.path.isfile(count_output3):
+            result3gram = p.load(open(count_output3, 'rb'))
+        else:
+            if os.path.isfile(candidate_output3):
+                pass
+            else:
+                queryForOneBinary3Gram(testbin.threeGramList, candidate_output3)
+
+            result3gram = testbin.count(candidate_output3)
+            p.dump(result3gram, open(count_output3, 'w'))
+
+        #2gram
+        if os.path.isfile(count_output2):
+            result2gram = p.load(open(count_output2, 'rb'))
+        else:
+            if os.path.isfile(candidate_output2):
+                pass
+            else:
+                queryForOneBinary2Gram(testbin.twoGramList, candidate_output2)
+
+            result2gram = testbin.count(candidate_output2)
+            p.dump(result2gram, open(count_output2, 'w'))
+
+        print("--- %s seconds ---" % (time.time() - start_time))
+
+def exclude_mutual_exclusive(results1, results2):
+    pass
+
 def test_some_binary():
     libs = load_libs()
     dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles'
@@ -214,8 +234,8 @@ def test_some_binary():
             continue
         path = os.path.join(dir, folder, dotfile)
         path2 = os.path.join(dir, folder, namfile)
-        outpath = os.path.join(dir, folder, 'test_kNN_0409.p')
-        outpath2 = os.path.join(dir, folder, 'out_0409.p')
+        outpath = os.path.join(dir, folder, 'test_kNN_0414.p')
+        outpath2 = os.path.join(dir, folder, 'out_0414.p')
         if os.path.isfile(outpath2):
             continue
         if os.path.isfile(outpath):
@@ -227,35 +247,41 @@ def test_some_binary():
         print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == '__main__':
-    choice = int(sys.argv[1])
-    if choice == 0:
-        preprocessing_label()
-    elif choice == 1:
-        train()
-    elif choice == 2:
-        identity_key_functions()
-    elif choice == 3:
-        query()
-    elif choice == 4:
-        path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.ida.nam'
-        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/test_kNN_0408.p'
-        queryForOneBinary(path2, queryPath)
-    elif choice == 5:
-        analyse_naive()
-    elif choice == 6:
-        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/test_kNN_0408.p'
-        analyse_labelcount(queryPath)
-    elif choice == 7:
-        path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.dot'
-        path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.ida.nam'
-        queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/test_kNN_0408.p'
-        folder = 'openssl-OpenSSL_1_0_0s'
-        path11 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.dot')
-        path12 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.ida.nam')
-        lib = Library(path11, path12)
-        lib.libraryName = folder.split('-')[1]+'_libcrypto.so'
-        #libs = load_libs()
-        #test_one_binary(path, path2, queryPath, libs)
-        test_one_binary(path, path2, queryPath, [lib])
-    elif choice == 8:
-        test_some_binary()
+    # choice = int(sys.argv[1])
+    # if choice == 0:
+    #     preprocessing_label()
+    # elif choice == 1:
+    #     train()
+    # elif choice == 2:
+    #     identity_key_functions()
+    # elif choice == 3:
+    #     query()
+    # elif choice == 4:
+    #     path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.ida.nam'
+    #     queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/idafiles/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}/test_kNN_0415.p'
+    #     queryForOneBinary(path2, queryPath)
+    # elif choice == 5:
+    #     analyse_naive()
+    # elif choice == 6:
+    #     queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/test_kNN_0415.p'
+    #     analyse_labelcount(queryPath)
+    # elif choice == 7:
+    #     dotPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.dot'
+    #     funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
+    #     queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}/test_kNN_0429.p'
+    #     binaryName = 'nginx-{openssl-1.0.0s}{zlib-1.2.7.3}'
+    #     namPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.ida.nam'
+    #
+    #     # testbin = TestBinary(binaryName, dotPath, funcembFolder)
+    #     # testbin.buildNGram(namPath)
+    #
+    #     # folder = 'openssl-OpenSSL_1_0_0t'
+    #     # path11 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.dot')
+    #     # path12 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.ida.nam')
+    #     # lib = Library(path11, path12)
+    #     # lib.libraryName = folder.split('-')[1]+'_libcrypto.so'
+    #     #libs = load_libs()
+    #     #test_one_binary(path, path2, queryPath, libs)
+    #     test_one_binary(binaryName, dotPath, funcembFolder, queryPath, namPath)
+    # elif choice == 8:
+    test_some_binary_ngram()

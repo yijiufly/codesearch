@@ -1,0 +1,2 @@
+model_checkpoint_path: "/home/yijiufly/Downloads/codesearch/embedding_w2v/model/model.ckpt"
+all_model_checkpoint_paths: "/home/yijiufly/Downloads/codesearch/embedding_w2v/model/model.ckpt"

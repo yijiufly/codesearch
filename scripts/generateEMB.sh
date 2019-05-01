@@ -16,11 +16,11 @@ begin=$(date +%s)
 function generate_emb()
 {
 	echo "Generating file " $1/$2
-	python embedding/preprocessemb.py $1/$2
+	python3 embedding_w2v/preprocessemb.py $1/$2
 }
 
 
-dir=out/idafiles
+dir=data/zlib/zlib-O2
 home=$PWD
 cd ..
 echo "Generating idafiles in " $dir
@@ -31,7 +31,7 @@ cd ..
 max=${#array[@]}
 echo "containing " $max "files"
 
-rsnum=10
+rsnum=4
 times=$(expr $max / $rsnum)
 PID=()
 for((i=1; i<=max; )); do

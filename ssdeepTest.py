@@ -14,12 +14,12 @@ from scipy import linalg as LA
 #from embedding import Embedding
 from multiprocessing import Pool
 import traceback
-import tables as tb
-from scipy import spatial
-from numpy.linalg import norm
+#import tables as tb
+#from scipy import spatial
+#from numpy.linalg import norm
 import math
 import json
-import lshknn
+#import lshknn
 
 trainingmFilenameList = []
 EMBPATH     = "/rhome/lgao027/bigdata/binary/openssl/func_emb/"
@@ -64,7 +64,7 @@ def printMatrix(filenameList, PATH): # inputlist with filenames, PATH for direct
             results_inner.append(result)
             # print("%3d"% (ssdeep.compare(hash1, hash2))), ## print ssdep compeare score
             print("%3d"% (ssdeep.compare(hash1, hash2))),
-        print '\n'
+        print('\n')
         results.append(results_inner)
     return results
 
@@ -128,7 +128,7 @@ def calcsim_cos(testsample):
             f2.close
 
         except Exception:
-            print traceback.format_exc()
+            print(traceback.format_exc())
 
     return results_inner
 
@@ -155,7 +155,7 @@ def calcsim_tensorflow(testsample):
             f2.close
 
         except Exception:
-            print traceback.format_exc()
+            print(traceback.format_exc())
 
     return results_inner
 
@@ -201,13 +201,13 @@ def calc_tp(node_id):
         tofs = pool.map(calcsim_ssdeep, testingmFilenameList[node_id*20:(node_id+1)*20])
 
     except Exception:
-        print traceback.format_exc()
+        print(traceback.format_exc())
     finally:
         print("final results:")
-        print posCounts
-        print posCounts_raw
-        print posCounts/500*1.0
-        print posCounts_raw/500*1.0
+        print(posCounts)
+        print(posCounts_raw)
+        print(posCounts/500*1.0)
+        print(posCounts_raw/500*1.0)
 
 def calc_sample_similarity(testsample):
     global newNameList
@@ -223,9 +223,9 @@ def calc_sample_similarity(testsample):
             results_inner.append(result)
 
         except Exception:
-            print traceback.format_exc()
-            print PATH1
-            print PATH2
+            print(traceback.format_exc())
+            print(PATH1)
+            print(PATH2)
     return results_inner
 
 def calc_similarity_matrix(node_id):
@@ -262,37 +262,41 @@ def calc_similarity_matrix(node_id):
         result = emb.test_similarity(file11, file22)
         #p.dump(result[0],f)
         #f.write(str(result) + '\n')
-        print len(result)
-        print len(result[0])
+        print(len(result))
+        print(len(result[0]))
 
         f = tb.open_file('versiondetect_funcsimilarity.h5', 'a')
         out = f.root.data
         out[row * size:min((row + 1) * size, len(newNameList)), column * size:min(len(newNameList), (column + 1) * size)] = result
         f.close()
     except Exception:
-        print traceback.format_exc()
+        print(traceback.format_exc())
 
 
 def decompose(embsample):
-    PATH = "/home/yijiufly/Downloads/codesearch/data/zlib/zlib-embs-O2/" + embsample
-    NAM_PATH = "/home/yijiufly/Downloads/codesearch/data/zlib/zlib-embs-O2/" + embsample[:-3] + 'nam'
-    OUTPATH = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/funcemb_output_zlib_O2/"
+    name = embsample.split('/')[-1]
+    label = embsample.split('/')[-2]
+    #label = label[8:] + '_' + name
+    PATH = embsample
+    NAM_PATH = embsample[:-3] + 'nam'
+    OUTPATH = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing/"
     f = open(PATH, "rb")
     funcs = p.load(f)
     nams = p.load(open(NAM_PATH, "rb"))
-    for i in xrange(len(funcs)):
-        OUTFILE = OUTPATH + embsample[:-8] + "O2{" + nams[i] + "}.emb"
+    for i in range(len(funcs)):
+        #OUTFILE = OUTPATH + label[8:] + "_"+ name[:-8] + "{" + nams[i] + "}.emb"
+        OUTFILE = OUTPATH + label + "{" + nams[i] + "}.emb"
         #print OUTFILE
         file = open(OUTFILE,'wb')
-        p.dump(funcs[i], file)
-        file.close
+        p.dump(funcs[i], file, protocol=2)
+        file.close()
 
 def decomposebinary():
     try:
-        pool = Pool(processes=2)
+        pool = Pool(processes=4)
         res = pool.map(decompose, newNameList)
     except Exception:
-        print traceback.format_exc()
+        print(traceback.format_exc())
 
 # def lshkNN_preprocessing():
 #     f = open("data/versiondetect_func_list.txt", "rb")
@@ -375,12 +379,17 @@ def main():
     ###########################################
     # ### load embedding filenames listdir
     #embFilenames    = loadFiles("/rhome/lgao027/bigdata/binary/openssl/openssl_emb_exclude_smallfuncs/", ".emb")
-
-    embFilenames    = loadFiles("/home/yijiufly/Downloads/codesearch/data/zlib/zlib-embs-O2", ".emb")
     global newNameList
-    newNameList = embFilenames
+    newNameList = []
+    #dir = "/home/yijiufly/Downloads/codesearch/data/openssl"
+    dir = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx"
+    for folder in os.listdir(dir):
+        #embFilenames = loadFiles("/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2", ".emb")
+        embFilenames = [os.path.join(dir, folder, f) for f in os.listdir(os.path.join(dir, folder)) if f.endswith('.emb')]
+        newNameList.extend(embFilenames)
 
     decomposebinary()
+    #print(newNameList)
 
 
 
