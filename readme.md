@@ -11,6 +11,7 @@ codesearch/
 ```
 
 ## To generate embeddings for a library:
+```
 structure
 lib/
       version1/
@@ -18,6 +19,7 @@ lib/
       version2/
               ......
   ......
+```
 1. generate IDA files
   run python3 embedding_w2v/extractor.py
 2. generate function embedding
