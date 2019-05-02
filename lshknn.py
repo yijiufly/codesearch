@@ -124,7 +124,7 @@ def queryForOneBinary3Gram(qdata, outpath):
 
 def queryForOneBinary2Gram(qdata, outpath):
     redis_object = Redis(host='localhost', port=6379, db=2)
-    hashMap = getHashMap("2gram-grouped", redis_object, dim=128)
+    hashMap = getHashMap("test3-2gram", redis_object, dim=128)
     print("\nStart query for test data")
     testkNN = doSearch(hashMap, qdata)
     p.dump(testkNN, open(outpath, "w"))
@@ -163,13 +163,13 @@ def build2gramDB(configname):
         for src in keylist:
             for (des, distance) in linklistgraph[src]:
                 try:
-                    srcname = lib.ind2FuncName[src]
+                    srcname = lib.libraryName + '{' + lib.ind2FuncName[src] + '}.emb'
                     srcemb = zlib_data[namelist.index(srcname)]
-                    desname = lib.ind2FuncName[des]
+                    desname = lib.libraryName + '{' + lib.ind2FuncName[des] + '}.emb'
                     desemb = zlib_data[namelist.index(desname)]
                     # print(np.concatenate((srcemb, desemb)))
                     #print((srcname, desname))
-                    hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb))], [[path_zlib.split('/')[-1], lib.libraryName, (srcname, desname)]])
+                    hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb))], [[path_zlib.split('/')[-1], folder, (srcname, desname)]])
                 except:
                     #print(traceback.format_exc())
                     pass
@@ -187,12 +187,12 @@ def build2gramDB(configname):
         for src in keylist:
             for (des, distance) in linklistgraph[src]:
                 try:
-                    srcname = lib.ind2FuncName[src]
+                    srcname = lib.libraryName + '{' + lib.ind2FuncName[src] + '}.emb'
                     srcemb = openssl_data[names.index(srcname)]
-                    desname = lib.ind2FuncName[des]
+                    desname = lib.libraryName + '{' + lib.ind2FuncName[des] + '}.emb'
                     desemb = openssl_data[names.index(desname)]
                     #print((srcname, desname))
-                    hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb))], [[path_openssl.split('/')[-1], lib.libraryName, (srcname, desname)]])
+                    hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb))], [[path_openssl.split('/')[-1], folder, (srcname, desname)]])
                 except:
                     pass
         print('load ' + lib.libraryName)
@@ -205,12 +205,12 @@ def build2gramDB(configname):
         for src in keylist:
             for (des, distance) in linklistgraph[src]:
                 try:
-                    srcname = lib.ind2FuncName[src]
+                    srcname = lib.libraryName + '{' + lib.ind2FuncName[src] + '}.emb'
                     srcemb = openssl_data[names.index(srcname)]
-                    desname = lib.ind2FuncName[des]
+                    desname = lib.libraryName + '{' + lib.ind2FuncName[des] + '}.emb'
                     desemb = openssl_data[names.index(desname)]
                     #print((srcname, desname))
-                    hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb))], [[path_openssl.split('/')[-1], lib.libraryName, (srcname, desname)]])
+                    hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb))], [[path_openssl.split('/')[-1], folder, (srcname, desname)]])
                 except:
                     pass
 
@@ -240,13 +240,13 @@ def build3gramDB(configname):
                 if des in keylist:
                     for (des2, distance2) in linklistgraph[des]:
                         try:
-                            srcname = lib.ind2FuncName[src]
+                            srcname = lib.libraryName + '{' + lib.ind2FuncName[src] + '}.emb'
                             srcemb = zlib_data[namelist.index(srcname)]
-                            desname = lib.ind2FuncName[des]
+                            desname = lib.libraryName + '{' + lib.ind2FuncName[des] + '}.emb'
                             desemb = zlib_data[namelist.index(desname)]
-                            desname2 = lib.ind2FuncName[des2]
+                            desname2 = lib.libraryName + '{' + lib.ind2FuncName[des2] + '}.emb'
                             desemb2 = zlib_data[namelist.index(desname2)]
-                            hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb, desemb2))], [[path_zlib.split('/')[-1], lib.libraryName, (srcname, desname, desname2)]])
+                            hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb, desemb2))], [[path_zlib.split('/')[-1], folder, (srcname, desname, desname2)]])
                         except:
                             #print(traceback.format_exc())
                             pass
@@ -255,7 +255,9 @@ def build3gramDB(configname):
 
     # load openssl edges to LSH database
     path_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl'
-    for folder in os.listdir(path_openssl):
+    folders = os.listdir(path_openssl)
+    folders.sort()
+    for folder in folders[:10]:
         path11 = os.path.join(path_openssl, folder, 'libcrypto.so.dot')
         lib = Library(path11)
         lib.libraryName = folder.split('-')[1] + '_libcrypto.so'
@@ -266,13 +268,13 @@ def build3gramDB(configname):
                 if des in keylist:
                     for (des2, distance2) in linklistgraph[des]:
                         try:
-                            srcname = lib.ind2FuncName[src]
+                            srcname = lib.libraryName + '{' + lib.ind2FuncName[src] + '}.emb'
                             srcemb = openssl_data[names.index(srcname)]
-                            desname = lib.ind2FuncName[des]
+                            desname = lib.libraryName + '{' + lib.ind2FuncName[des] + '}.emb'
                             desemb = openssl_data[names.index(desname)]
-                            desname2 = lib.ind2FuncName[des2]
+                            desname2 = lib.libraryName + '{' + lib.ind2FuncName[des2] + '}.emb'
                             desemb2 = openssl_data[names.index(desname2)]
-                            hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb, desemb2))], [[path_openssl.split('/')[-1], lib.libraryName, (srcname, desname, desname2)]])
+                            hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb, desemb2))], [[path_openssl.split('/')[-1], folder, (srcname, desname, desname2)]])
                         except:
                             pass
         print('load ' + lib.libraryName)
@@ -287,13 +289,13 @@ def build3gramDB(configname):
                 if des in keylist:
                     for (des2, distance2) in linklistgraph[des]:
                         try:
-                            srcname = lib.ind2FuncName[src]
+                            srcname = lib.libraryName + '{' + lib.ind2FuncName[src] + '}.emb'
                             srcemb = openssl_data[names.index(srcname)]
-                            desname = lib.ind2FuncName[des]
+                            desname = lib.libraryName + '{' + lib.ind2FuncName[des] + '}.emb'
                             desemb = openssl_data[names.index(desname)]
-                            desname2 = lib.ind2FuncName[des2]
+                            desname2 = lib.libraryName + '{' + lib.ind2FuncName[des2] + '}.emb'
                             desemb2 = openssl_data[names.index(desname2)]
-                            hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb, desemb2))], [[path_openssl.split('/')[-1], lib.libraryName, (srcname, desname, desname2)]])
+                            hashMap = addToHashMap(hashMap, [np.concatenate((srcemb, desemb, desemb2))], [[path_openssl.split('/')[-1], folder, (srcname, desname, desname2)]])
                         except:
                             pass
 
@@ -308,6 +310,7 @@ if __name__ == '__main__':
     hashMap1 = build2gramDB(configname[1])
     hashMap1.grouping()
     hashMap2 = build3gramDB(configname[2])
+    # hashMap2 = build3gramDB("3gram-temp")
     # redis_object = Redis(host='localhost', port=6379, db=3)
     # hashMap = getHashMap(configname[2], redis_object, dim = 192)
     #cleanAllBuckets(hashMap)

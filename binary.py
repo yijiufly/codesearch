@@ -217,22 +217,29 @@ class TestBinary(Binary):
                 if len(funcList) > 107:
                     continue
                 for predicted_func in funcList:
-                    try:
-                        if type(predicted_func) is tuple:
-                            predicted_label = predicted_func[0].split('{')[0]
-                            if predicted_label in votes:
-                                votes[predicted_label] += 1
-                            else:
-                                votes[predicted_label] = 1
-                        elif type(predicted_func[0]) is tuple:
-                            predicted_label = predicted_func[0][0].split('{')[0]
-                            if predicted_label in votes:
-                                votes[predicted_label] += 1
-                            else:
-                                votes[predicted_label] = 1
-                    except:
-                        print(traceback.format_exc())
-                        print(predicted_func)
+                    binaryName = predicted_func[0]
+                    version = predicted_func[1]
+                    predicted_label = binaryName + '_' + version
+                    if predicted_label in votes:
+                        votes[predicted_label] += 1
+                    else:
+                        votes[predicted_label] = 1
+                    # try:
+                    #     if type(predicted_func) is tuple:
+                    #         predicted_label = predicted_func[0].split('{')[0]
+                    #         if predicted_label in votes:
+                    #             votes[predicted_label] += 1
+                    #         else:
+                    #             votes[predicted_label] = 1
+                    #     elif type(predicted_func[0]) is tuple:
+                    #         predicted_label = predicted_func[0][0].split('{')[0]
+                    #         if predicted_label in votes:
+                    #             votes[predicted_label] += 1
+                    #         else:
+                    #             votes[predicted_label] = 1
+                    # except:
+                    #     print(traceback.format_exc())
+                    #     print(predicted_func)
 
         sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
         return sorted_count

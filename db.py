@@ -38,8 +38,8 @@ class db:
         config = self.storage.load_hash_configuration(str(configname))
 
         if config is None:
-            # Config is not existing, create hash from scratch, with 50 projections
-            self.lshash = RandomBinaryProjections(configname, 50)
+            # Config is not existing, create hash from scratch, with 20 projections
+            self.lshash = RandomBinaryProjections(configname, 30)
             print('new configuration!')
         else:
             # Config is existing, create hash with None parameters
@@ -78,7 +78,7 @@ class db:
 
         # Do some stuff like indexing or querying with the engine...
     def indexing(self, vectors, names):
-        count = self._countTotalNum(verbose=False)
+        #count = self._countTotalNum(verbose=False)
         for idx, vec in enumerate(vectors):
             #print type(vec)
             self.engine.store_vector(vec, names[idx])

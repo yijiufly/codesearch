@@ -167,7 +167,9 @@ def load_libs():
 def test_some_binary_ngram():
     dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
     funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
-    for folder in os.listdir(dir):
+    folders = os.listdir(dir)
+    folders.sort()
+    for folder in folders:
         print('\n'+folder)
         start_time = time.time()
         try:
@@ -183,11 +185,11 @@ def test_some_binary_ngram():
         #pdb.set_trace()
 
         #calculate 3gram
-        candidate_output3 = os.path.join(dir, folder, 'test_kNN_0429_3gram.p')
-        count_output3 = os.path.join(dir, folder, 'out_0429_3gram.p')
+        candidate_output3 = os.path.join(dir, folder, 'test_kNN_0501_3gram.p')
+        count_output3 = os.path.join(dir, folder, 'out_0501_3gram.p')
 
-        candidate_output2 = os.path.join(dir, folder, 'test_kNN_0429_2gram.p')
-        count_output2 = os.path.join(dir, folder, 'out_0429_2gram.p')
+        candidate_output2 = os.path.join(dir, folder, 'test_kNN_0501_2gram.p')
+        count_output2 = os.path.join(dir, folder, 'out_0501_2gram.p')
         if os.path.isfile(count_output3) and os.path.isfile(count_output2):
             continue
 
