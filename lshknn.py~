@@ -315,13 +315,13 @@ if __name__ == '__main__':
     global hashMap3
     hashMap3 = getHashMap("test3-3gram", redis_object3, dim=192)
     global lib_data, namelist
-    #lib_data, namelist = loadDataFromFolder(
-    #    '/rhome/lgao027/shared/data/funcemb_zlibO2')
     lib_data, namelist = loadDataFromFolder(
-            '/rhome/lgao027/shared/data/funcemb_openssl/')
+        '/rhome/lgao027/shared/data/funcemb_zlibO2')
+    #lib_data, namelist = loadDataFromFolder(
+    #        '/rhome/lgao027/shared/data/funcemb_openssl/')
     global path_lib
-    #path_lib = '/rhome/lgao027/shared/data/zlib-O2'
-    path_lib = '/rhome/lgao027/shared/data/openssl'
+    path_lib = '/rhome/lgao027/shared/data/zlib-O2'
+    #path_lib = '/rhome/lgao027/shared/data/openssl'
     # hashMap2 = build3gramDB("3gram-temp")
     build3gramDB()
     # redis_object = Redis(host='localhost', port=6379, db=3)

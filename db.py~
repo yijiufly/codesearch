@@ -43,7 +43,7 @@ class db:
             print('new configuration!')
         else:
             # Config is existing, create hash with None parameters
-            self.lshash = RandomBinaryProjectionTree(None, None, None)
+            self.lshash = RandomBinaryProjectionTree(None, None)
             # Apply configuration loaded from redis
             self.lshash.apply_config(config)
 
