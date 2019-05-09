@@ -10,6 +10,7 @@ from lshknn import queryForOneBinary3Gram, queryForOneBinary2Gram
 import os
 import time
 import traceback
+import multiprocessing
 
 def loadkNNGraph(querykNNPath=None):
     knn = []
@@ -164,13 +165,37 @@ def load_libs():
         print 'load ' + lib.libraryName
     return libs
 
-def test_some_binary_ngram():
-    dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
-    funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
+def parallelQuery():
+    dir = '/rhome/zqi020/shared/data/nginx'
+    funcembFolder = '/rhome/zqi020/shared/data/funcemb_testing'
     folders = os.listdir(dir)
     folders.sort()
-    for folder in folders:
-        print('\n'+folder)
+    l = len(folders)
+    cores = multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=cores)
+    num = l/cores
+    start_time = time.time()
+    '''
+    for i in range(cores):
+        pool.apply_async(test_some_binary_ngram, (i*num, (i+1)*num, ))
+    if num*cores < l:
+        pool.apply_async(test_some_binary_ngram, (num*cores, l, ))
+    '''
+    len_range = [x for x in range(l)]
+    pool.map(test_some_binary_ngram, len_range)
+    pool.close()
+    pool.join()
+    print "parallelQuery done"
+    print("--- totoal time: %s seconds ---" % (time.time() - start_time))
+
+def test_some_binary_ngram(i):
+    dir = '/rhome/zqi020/shared/data/nginx'
+    funcembFolder = '/rhome/zqi020/shared/data/funcemb_testing'
+    folders = os.listdir(dir)
+    folders.sort()
+    print "PID:", os.getpid()
+    for folder in folders[i:i+1]:
+        print(folder)
         start_time = time.time()
         try:
             dotfile = loadFiles(os.path.join(dir, folder), ext='.dot')[0]
@@ -183,15 +208,32 @@ def test_some_binary_ngram():
         dotPath = os.path.join(dir, folder, dotfile)
         namPath = os.path.join(dir, folder, namfile)
         #pdb.set_trace()
+        candidate_output2 = os.path.join(dir, folder, 'test_kNN_0505_2gram.p')
+        count_output2 = os.path.join(dir, folder, 'out_0505_2gram.p')
+        if os.path.isfile(count_output2):
+            continue
+        
+        testbin = TestBinary(binaryName, dotPath, funcembFolder)
+        testbin.buildNGram(namPath)
 
+        #2gram
+        if os.path.isfile(count_output2):
+            result2gram = p.load(open(count_output2, 'rb'))
+        else:
+            if os.path.isfile(candidate_output2):
+                pass
+            else:
+                print "start querying"
+                queryForOneBinary2Gram(testbin.twoGramList, candidate_output2)
+
+            result2gram = testbin.count(candidate_output2)
+            p.dump(result2gram, open(count_output2, 'w'))
+
+        print("--- %s seconds ---" % (time.time() - start_time))
+        '''
         #calculate 3gram
         candidate_output3 = os.path.join(dir, folder, 'test_kNN_0501_3gram.p')
         count_output3 = os.path.join(dir, folder, 'out_0501_3gram.p')
-
-        candidate_output2 = os.path.join(dir, folder, 'test_kNN_0501_2gram.p')
-        count_output2 = os.path.join(dir, folder, 'out_0501_2gram.p')
-        if os.path.isfile(count_output3) and os.path.isfile(count_output2):
-            continue
 
         testbin = TestBinary(binaryName, dotPath, funcembFolder)
         testbin.buildNGram(namPath)
@@ -205,20 +247,8 @@ def test_some_binary_ngram():
 
             result3gram = testbin.count(candidate_output3)
             p.dump(result3gram, open(count_output3, 'w'))
+        '''
 
-        #2gram
-        if os.path.isfile(count_output2):
-            result2gram = p.load(open(count_output2, 'rb'))
-        else:
-            if os.path.isfile(candidate_output2):
-                pass
-            else:
-                queryForOneBinary2Gram(testbin.twoGramList, candidate_output2)
-
-            result2gram = testbin.count(candidate_output2)
-            p.dump(result2gram, open(count_output2, 'w'))
-
-        print("--- %s seconds ---" % (time.time() - start_time))
 
 def exclude_mutual_exclusive(results1, results2):
     pass
@@ -249,6 +279,9 @@ def test_some_binary():
         print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == '__main__':
+#    test_some_binary_ngram(0, 80)
+    parallelQuery()
+
     # choice = int(sys.argv[1])
     # if choice == 0:
     #     preprocessing_label()
@@ -286,4 +319,4 @@ if __name__ == '__main__':
     #     #test_one_binary(path, path2, queryPath, libs)
     #     test_one_binary(binaryName, dotPath, funcembFolder, queryPath, namPath)
     # elif choice == 8:
-    test_some_binary_ngram()
+    

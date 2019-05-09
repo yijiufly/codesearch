@@ -9,7 +9,7 @@ import pickle as p
 import time
 import pdb
 import sys
-sys.path.insert(0, '/home/yijiufly/Downloads/codesearch/embedding_w2v')
+sys.path.insert(0, './embedding_w2v')
 from embedding_w2v.embedding import Embedding
 from Quick_Find import *
 from Quick_Union import *
@@ -39,7 +39,7 @@ class db:
 
         if config is None:
             # Config is not existing, create hash from scratch, with 20 projections
-            self.lshash = RandomBinaryProjections(configname, 30)
+            self.lshash = RandomBinaryProjections(configname, 50)
             print('new configuration!')
         else:
             # Config is existing, create hash with None parameters

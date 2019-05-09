@@ -6,7 +6,7 @@ from library import Library
 import pymongo
 from redis import Redis
 import traceback
-
+datapath, name = os.path.split('/rhome/zqi020/shared/data/')
 def _get_binary_hash(file_path):
     fd = open(file_path, 'rb')
     md5 = hashlib.sha256()
@@ -147,12 +147,13 @@ def build2gramDB(configname):
     redis_object = Redis(host='localhost', port=6379, db=2)
     hashMap = getHashMap(configname, redis_object, dim=128)
     openssl_data, names = loadDataFromFolder(
-        'data/versiondetect/test3/funcemb_openssl/')
+        os.path.join(datapath, 'funcemb_openssl'))
     zlib_data, namelist = loadDataFromFolder(
-        'data/versiondetect/test3/funcemb_zlibO2')
+        os.path.join(datapath, 'funcemb_zlibO2'))
 
     #load zlib edges to LSH database
-    path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'
+    #path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'
+    path_zlib = os.path.join(datapath, 'zlib-O2')
     for folder in os.listdir(path_zlib):
         dotfile = loadFiles(os.path.join(path_zlib, folder), ext='.dot')[0]
         path11 = os.path.join(path_zlib, folder, dotfile)
@@ -177,7 +178,8 @@ def build2gramDB(configname):
         print('load ' + lib.libraryName)
 
     # load openssl edges to LSH database
-    path_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl'
+    #path_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl'
+    path_openssl = os.path.join(datapath, 'openssl')
     for folder in os.listdir(path_openssl):
         path11 = os.path.join(path_openssl, folder, 'libcrypto.so.dot')
         lib = Library(path11)
@@ -218,16 +220,18 @@ def build2gramDB(configname):
     return hashMap
 
 
+
 def build3gramDB(configname):
     redis_object = Redis(host='localhost', port=6379, db=3)
     hashMap = getHashMap(configname, redis_object, dim=192)
     openssl_data, names = loadDataFromFolder(
-        'data/versiondetect/test3/funcemb_openssl/')
+        os.path.join(datapath, 'funcemb_openssl'))
     zlib_data, namelist = loadDataFromFolder(
-        'data/versiondetect/test3/funcemb_zlibO2')
+        os.path.join(datapath,'funcemb_zlibO2'))
 
     #load zlib edges to LSH database
-    path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'
+    #path_zlib = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'
+    path_zlib = os.path.join(datapath, 'zlib/zlib-O2')
     for folder in os.listdir(path_zlib):
         dotfile = loadFiles(os.path.join(path_zlib, folder), ext='.dot')[0]
         path11 = os.path.join(path_zlib, folder, dotfile)
@@ -254,10 +258,11 @@ def build3gramDB(configname):
         print('load ' + lib.libraryName)
 
     # load openssl edges to LSH database
-    path_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl'
+    #path_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl'
+    path_openssl = os.path.join(datapath, 'openssl')
     folders = os.listdir(path_openssl)
     folders.sort()
-    for folder in folders[:10]:
+    for folder in folders:
         path11 = os.path.join(path_openssl, folder, 'libcrypto.so.dot')
         lib = Library(path11)
         lib.libraryName = folder.split('-')[1] + '_libcrypto.so'
@@ -309,15 +314,14 @@ if __name__ == '__main__':
     #build1gramDB(configname[0])
     hashMap1 = build2gramDB(configname[1])
     hashMap1.grouping()
-    hashMap2 = build3gramDB(configname[2])
-    # hashMap2 = build3gramDB("3gram-temp")
+    #hashMap2 = build3gramDB(configname[2])
+    #hashMap2.grouping()
     # redis_object = Redis(host='localhost', port=6379, db=3)
     # hashMap = getHashMap(configname[2], redis_object, dim = 192)
     #cleanAllBuckets(hashMap)
     # redis_object2 = Redis(host='localhost', port=6379, db=4)
     # grouped_hashMap = getHashMap(grouped_configname[2], redis_object2, dim = 192)
     #grouped_hashMap = addToHashMap(grouped_hashMap, [], [])
-    hashMap2.grouping()
     # hashMap = getHashMap()
     # data, newNameList = loadData("data/versiondetect/test2/versiondetect_func_list.txt")
     # print "Start add data to hash map"
