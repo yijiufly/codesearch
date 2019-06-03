@@ -6,10 +6,14 @@ import operator
 import pdb
 from binary import TestBinary
 from library import Library
-from lshknn import queryForOneBinary3Gram, queryForOneBinary2Gram
+#from lshknn import queryForOneBinary3Gram, queryForOneBinary2Gram
+import sys
+sys.path.append('./SPTAG/Release')
+from searchSPTAG import queryForOneBinary3Gram
 import os
 import time
 import traceback
+import multiprocessing
 
 def loadkNNGraph(querykNNPath=None):
     knn = []
@@ -164,48 +168,92 @@ def load_libs():
         print 'load ' + lib.libraryName
     return libs
 
-def test_some_binary_ngram():
+def test3gram():
+    dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
+    folders = os.listdir(dir)
+    try:
+        pool = Pool(processes=1)
+        pool.map(test_some_binary_ngram, folders)
+    except:
+        print(traceback.format_exc())
+        pass
+    pool.close()
+    pool.join()
+
+def parallelQuery():
     dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
     funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
     folders = os.listdir(dir)
     folders.sort()
-    for folder in folders:
-        print('\n'+folder)
+    l = len(folders)
+    cores = 8#multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=cores)
+    num = l/cores
+    start_time = time.time()
+    for i in range(cores):
+        pool.apply_async(test_some_binary_ngram, (i*num, (i+1)*num, ))
+    if num*cores < l:
+        pool.apply_async(test_some_binary_ngram, (num*cores, l, ))
+
+    pool.close()
+    pool.join()
+    print "parallelQuery done"
+    print("--- totoal time: %s seconds ---" % (time.time() - start_time))
+
+def test_some_binary_ngram(i, j):
+    dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
+    #funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
+    folders = os.listdir(dir)
+    folders.sort()
+    print "PID:", os.getpid()
+    print i,j
+    for folder in folders[i:j]:
+        print(folder)
         start_time = time.time()
         try:
-            dotfile = loadFiles(os.path.join(dir, folder), ext='.dot')[0]
-            namfile = loadFiles(os.path.join(dir, folder), ext='.nam')[0]
+            dotfiles = loadFiles(os.path.join(dir, folder), ext='.dot')
+            namfiles = loadFiles(os.path.join(dir, folder), ext='.nam')
+            embfiles = loadFiles(os.path.join(dir, folder), ext='.emb')
         except Exception:
             print traceback.format_exc()
             continue
+        for i in range(len(dotfiles)):
+            dotfile = dotfiles[i]
+            namfile = namfiles[i]
+            embfile = embfiles[i]
+            binaryName = dotfile.split('.')[0]
+            dotPath = os.path.join(dir, folder, dotfile)
+            namPath = os.path.join(dir, folder, namfile)
+            embPath = os.path.join(dir, folder, embfile)
 
-        binaryName = folder
-        dotPath = os.path.join(dir, folder, dotfile)
-        namPath = os.path.join(dir, folder, namfile)
-        #pdb.set_trace()
+            #calculate 3gram
+            # candidate_output3 = os.path.join(dir, folder, binaryName+'_test_kNN_0521_3gram.p')
+            # count_output3 = os.path.join(dir, folder, binaryName+'_BP_undirected.txt')
+            binary_dir = os.path.join(dir, folder)
+            candidate_output2 = os.path.join(dir, folder, 'test_kNN_0502_2gram.p')
+            '''
+            count_output2 = os.path.join(dir, folder, 'out_0507_2gram.p')
+            '''
+            if os.path.isfile(count_output3):
+                continue
 
-        #calculate 3gram
-        candidate_output3 = os.path.join(dir, folder, 'test_kNN_0501_3gram.p')
-        count_output3 = os.path.join(dir, folder, 'out_0501_3gram.p')
+            testbin = TestBinary(binaryName, dotPath, embPath)
 
-        candidate_output2 = os.path.join(dir, folder, 'test_kNN_0501_2gram.p')
-        count_output2 = os.path.join(dir, folder, 'out_0501_2gram.p')
-        if os.path.isfile(count_output3) and os.path.isfile(count_output2):
-            continue
-
-        testbin = TestBinary(binaryName, dotPath, funcembFolder)
-        testbin.buildNGram(namPath)
-        if os.path.isfile(count_output3):
-            result3gram = p.load(open(count_output3, 'rb'))
-        else:
-            if os.path.isfile(candidate_output3):
+            if os.path.isfile(count_output3):
+                #result3gram = p.load(open(count_output3, 'rb'))
                 pass
             else:
-                queryForOneBinary3Gram(testbin.threeGramList, candidate_output3)
+                if os.path.isfile(candidate_output3):
+                    pass
+                else:
+                    testbin.buildNGram(namPath)
+                    queryForOneBinary3Gram(testbin.threeGramList, candidate_output3)
 
-            result3gram = testbin.count(candidate_output3)
-            p.dump(result3gram, open(count_output3, 'w'))
-
+            #testbin.callBP(candidate_output3, candidate_output2, namPath, binary_dir)
+            #result3gram = testbin.count(candidate_output3)
+            #p.dump(result3gram, open(count_output3, 'w'))
+        print("--- %s seconds ---" % (time.time() - start_time))
+'''
         #2gram
         if os.path.isfile(count_output2):
             result2gram = p.load(open(count_output2, 'rb'))
@@ -217,11 +265,9 @@ def test_some_binary_ngram():
 
             result2gram = testbin.count(candidate_output2)
             p.dump(result2gram, open(count_output2, 'w'))
+'''
 
-        print("--- %s seconds ---" % (time.time() - start_time))
 
-def exclude_mutual_exclusive(results1, results2):
-    pass
 
 def test_some_binary():
     libs = load_libs()
@@ -249,41 +295,5 @@ def test_some_binary():
         print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == '__main__':
-    # choice = int(sys.argv[1])
-    # if choice == 0:
-    #     preprocessing_label()
-    # elif choice == 1:
-    #     train()
-    # elif choice == 2:
-    #     identity_key_functions()
-    # elif choice == 3:
-    #     query()
-    # elif choice == 4:
-    #     path2 = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.ida.nam'
-    #     queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/idafiles/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}/test_kNN_0415.p'
-    #     queryForOneBinary(path2, queryPath)
-    # elif choice == 5:
-    #     analyse_naive()
-    # elif choice == 6:
-    #     queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test2/idafiles/6fef6fc0b6506e2a3d48ea5280e51604aec91d1d465a8a2bda42ba3f80cf55b5/test_kNN_0415.p'
-    #     analyse_labelcount(queryPath)
-    # elif choice == 7:
-    #     dotPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.dot'
-    #     funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
-    #     queryPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}/test_kNN_0429.p'
-    #     binaryName = 'nginx-{openssl-1.0.0s}{zlib-1.2.7.3}'
-    #     namPath = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}/nginx-{openssl-1.0.0s}{zlib-1.2.7.3}.ida.nam'
-    #
-    #     # testbin = TestBinary(binaryName, dotPath, funcembFolder)
-    #     # testbin.buildNGram(namPath)
-    #
-    #     # folder = 'openssl-OpenSSL_1_0_0t'
-    #     # path11 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.dot')
-    #     # path12 = os.path.join('/home/yijiufly/Downloads/codesearch/data/openssl/', folder, 'libcrypto.so.ida.nam')
-    #     # lib = Library(path11, path12)
-    #     # lib.libraryName = folder.split('-')[1]+'_libcrypto.so'
-    #     #libs = load_libs()
-    #     #test_one_binary(path, path2, queryPath, libs)
-    #     test_one_binary(binaryName, dotPath, funcembFolder, queryPath, namPath)
-    # elif choice == 8:
-    test_some_binary_ngram()
+    test_some_binary_ngram(0,90)
+    #parallelQuery()

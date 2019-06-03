@@ -23,7 +23,7 @@
 import numpy
 import scipy
 import scipy.sparse
-
+import pdb
 from nearpy.hashes.lshash import LSHash
 
 
@@ -112,7 +112,7 @@ class RandomBinaryProjectionTreeNode(object):
             else:
                 # Child subtree has enough results, so call method on child
                 return self.childs[hash_char].bucket_keys_to_guarantee_result_set_size(bucket_key, N, tree_depth+1)
-        else:
+        elif other_hash_char in self.childs:
             # That subtree is not existing, so just follow the other side
             return self.childs[other_hash_char].bucket_keys_to_guarantee_result_set_size(bucket_key, N, tree_depth+1)
 
@@ -212,7 +212,3 @@ class RandomBinaryProjectionTree(LSHash):
         self.normals = config['normals']
         self.tree_root = config['tree_root']
         self.minimum_result_size = config['minimum_result_size']
-
-
-
-

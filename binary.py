@@ -3,12 +3,16 @@ import pickle as p
 import pdb
 import numpy as np
 import traceback
+import os
+from sslh.test_SSLH_inference import runBP
+from collections import Counter
 class Binary:
     def __init__(self, path, path2):
         raise NotImplementedError
 
     def generatefuncNameFull(self, path):
         self.graph = pydot.graph_from_dot_file(path)
+        print('graph loaded')
         nodeList = self.graph.get_node_list()
         func2ind = dict()
         ind2func = dict()
@@ -43,7 +47,11 @@ class Binary:
                 linklistgraph[src].append((des, 1))
             else:
                 linklistgraph[src] = [(des, 1)]
-
+            if des in linklistgraph:
+               linklistgraph[des].append((src, 1))
+            else:
+               linklistgraph[des] = [(src, 1)]
+        print('edges loaded')
         # keylist = linklistgraph.keys()
         # findsmallnodes = -1
         # while findsmallnodes != 0:
@@ -63,19 +71,36 @@ class Binary:
     def addAdjacentEdges(self, path):
         adjacentInfo = p.load(open(path,'r'))
         for idx, funcname in enumerate(adjacentInfo):
-            ind1 = len(self.funcNameFull)
-            if funcname in self.funcNameFull:
-                ind1 = self.funcNameFull[funcname]
+            ind1 = len(self.funcName2Ind)
+            if funcname in self.funcName2Ind:
+                ind1 = self.funcName2Ind[funcname]
             else:
-                self.funcNameFull[funcname] = str(ind1)
+                self.funcName2Ind[funcname] = str(ind1)
             if idx != 0:
-                ind2 = self.funcNameFull[adjacentInfo[idx - 1]]
-                self.callgraphEdges.append([int(ind1), int(ind2), 1])
-                self.callgraphEdges.append([int(ind2), int(ind1), 1])
+                ind2 = self.funcName2Ind[adjacentInfo[idx - 1]]
+                if str(ind1) in self.callgraphEdges:
+                    self.callgraphEdges[str(ind1)].append((ind2, 1))
+                else:
+                    self.callgraphEdges[str(ind1)] = [(ind2, 1)]
+                if str(ind2) in self.callgraphEdges:
+                   self.callgraphEdges[str(ind2)].append((ind1, 1))
+                else:
+                   self.callgraphEdges[str(ind2)] = [(ind1, 1)]
+
+    def loadOneQueryBinary(self, funcnamepath, embFile):
+        names = p.load(open(funcnamepath, 'r'))
+        data = p.load(open(embFile, 'r'))
+        self.ind2emb=dict()
+        for i in range(len(names)):
+            if names[i] in self.funcName2Ind:
+                ind1 = self.funcName2Ind[names[i]]
+                self.ind2emb[ind1]=data[i]
+            # else:
+            #     print names[i]
 
     def buildNGram(self, namPath):
         #pdb.set_trace()
-        funcembs, namelist = loadOneQueryBinary(namPath, self.funcembFolder)
+        self.loadOneQueryBinary(namPath, self.embFile)
         twoGramList = []
         linklistgraph = self.callgraphEdges
         keylist = linklistgraph.keys()
@@ -83,10 +108,10 @@ class Binary:
             for (des, distance) in linklistgraph[src]:
                 try:
                     #pdb.set_trace()
-                    srcname = self.binaryName + '{' + self.ind2FuncName[src] + '}.emb'
-                    srcemb = funcembs[namelist.index(srcname)]
-                    desname = self.binaryName + '{' + self.ind2FuncName[des] + '}.emb'
-                    desemb = funcembs[namelist.index(desname)]
+                    srcname = self.ind2FuncName[src]
+                    srcemb = self.ind2emb[src]
+                    desname = self.ind2FuncName[des]
+                    desemb = self.ind2emb[des]
                     twoGramList.append([np.concatenate((srcemb, desemb)),(srcname, desname)])
 
                 except:
@@ -100,26 +125,28 @@ class Binary:
                 if des in keylist:
                     for (des2, distance2) in linklistgraph[des]:
                         try:
-                            srcname = self.binaryName + '{' + self.ind2FuncName[src] + '}.emb'
-                            srcemb = funcembs[namelist.index(srcname)]
-                            desname = self.binaryName + '{' + self.ind2FuncName[des] + '}.emb'
-                            desemb = funcembs[namelist.index(desname)]
-                            desname2 = self.binaryName + '{' + self.ind2FuncName[des2] + '}.emb'
-                            desemb2 = funcembs[namelist.index(desname2)]
+                            srcname = self.ind2FuncName[src]
+                            srcemb = self.ind2emb[src]
+                            desname = self.ind2FuncName[des]
+                            desemb = self.ind2emb[des]
+                            desname2 = self.ind2FuncName[des2]
+                            desemb2 = self.ind2emb[des2]
                             threeGramList.append([np.concatenate((srcemb, desemb, desemb2)), (srcname, desname, desname2)])
                         except:
                             #print(traceback.format_exc())
                             pass
         self.threeGramList = threeGramList
+        print('n-gram loaded')
+        #pdb.set_trace()
 
 
 class TestBinary(Binary):
-    def __init__(self, binaryName, dotPath, funcembFolder):
+    def __init__(self, binaryName, dotPath, embFile):
         print 'init testing binary'
         self.binaryName = binaryName
         self.generatefuncNameFull(dotPath)
         self.getGraphFromPath(dotPath)
-        self.funcembFolder = funcembFolder
+        self.embFile = embFile
 
     def getRank1Neighbors(self, selectedNeighbors, funcNameList):
         print 'analyse label count'
@@ -203,8 +230,7 @@ class TestBinary(Binary):
         print library.libraryName, edgeCount, len(srcs)+len(dests)
         return library.libraryName, edgeCount, len(srcs)+len(dests)
 
-    ## for each function, choose similar functions according to the similarity distribution of candidiate similar functions
-    ## choose the cluster of functions with the highest similarity scores
+
     def count(self, queryPath, threshold=0.999, verbose=True):
         #queryPath = 'data/versiondetect/test2/test_kNN.p'
         #query stores the query knn: each line is [query_func_name, func_name_list, similarity]
@@ -214,50 +240,100 @@ class TestBinary(Binary):
             if i[2] > threshold:
                 funcList = i[1]
                 #TODO: calculate IDF for each n-gram
-                if len(funcList) > 107:
-                    continue
+                # if len(funcList) > 107:
+                #     continue
+                labels = set()
                 for predicted_func in funcList:
-                    binaryName = predicted_func[0]
-                    version = predicted_func[1]
-                    predicted_label = binaryName + '_' + version
+                     binaryName = predicted_func[0]
+                     version = predicted_func[1]
+                     predicted_label = binaryName + '_' + version
+                     labels.add(predicted_label)
+
+                #IDF = np.log(116.0/len(labels))
+                for predicted_label in labels:
+                     if predicted_label in votes:
+                         votes[predicted_label] += 1
+                     else:
+                         votes[predicted_label] = 1
+                    #pdb.set_trace()
+                    #try:
+                    #    if type(predicted_func) is tuple:
+                    #        predicted_label = predicted_func[0].split('{')[0]
+                    #        labels.add(predicted_label)
+                    #    elif type(predicted_func[0]) is tuple:
+                    #        predicted_label = predicted_func[0][0].split('{')[0]
+                    #        labels.add(predicted_label)
+
+                    #except:
+                    #    print(traceback.format_exc())
+                    #    print(predicted_func)
+                #pdb.set_trace()
+                for predicted_label in labels:
                     if predicted_label in votes:
                         votes[predicted_label] += 1
                     else:
                         votes[predicted_label] = 1
-                    # try:
-                    #     if type(predicted_func) is tuple:
-                    #         predicted_label = predicted_func[0].split('{')[0]
-                    #         if predicted_label in votes:
-                    #             votes[predicted_label] += 1
-                    #         else:
-                    #             votes[predicted_label] = 1
-                    #     elif type(predicted_func[0]) is tuple:
-                    #         predicted_label = predicted_func[0][0].split('{')[0]
-                    #         if predicted_label in votes:
-                    #             votes[predicted_label] += 1
-                    #         else:
-                    #             votes[predicted_label] = 1
-                    # except:
-                    #     print(traceback.format_exc())
-                    #     print(predicted_func)
 
         sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
+        print(sorted_count)
         return sorted_count
 
-def calculateIDF():
-    pass
+    def callBP(self, queryPath_3gram, queryPath_2gram, namPath, resultsPath, threshold=0.999):
+        # prepare graph [[src, des, weight],[],...]
+        graph = []
+        self.addAdjacentEdges(namPath)
+        keylist = self.callgraphEdges.keys()
+        keylist.sort()
+        for edge_src in keylist:
+            for (edge_des, weight) in self.callgraphEdges[edge_src]:
+                graph.append([int(edge_src), int(edge_des), weight])
+        #prepare labels
+        query_3gram = p.load(open(queryPath_3gram, 'rb'))
+        #query_2gram = p.load(open(queryPath_2gram, 'rb'))
+        ind2labels = dict()
+        allLabelName = set()
+        for query in [query_3gram]:
+            for i in query:
+                if i[2] > threshold:
+                    funcList = i[1]
+                    labels = set()
+                    for predicted_func in funcList:
+                         binaryName = predicted_func[0]
+                         version = predicted_func[1]
+                         predicted_label = binaryName + '_' + version
+                         labels.add(predicted_label)
 
-def loadOneQueryBinary(funcnamepath, embpath):
-    names = p.load(open(funcnamepath, 'r'))
-    file11 = []
-    embnames = []
-    for i in range(len(names)):
-        embname = funcnamepath.split('/')[-1][:-8] + "{" + names[i] + "}.emb"
-        PATH = embpath + '/' + embname
-        f1 = open(PATH, 'rb')
-        file1 = p.load(f1).tolist()
-        file11.append(file1)
-        embnames.append(embname)
-        f1.close()
-    data = np.array(file11)
-    return data, embnames
+                    # labelList = i[1]
+                    functions = i[0]
+                    # labels = set()
+                    # for predicted_func in labelList:
+                    #     try:
+                    #         if type(predicted_func) is tuple:
+                    #             predicted_label = predicted_func[0].split('{')[0]
+                    #             labels.add(predicted_label)
+                    #         elif type(predicted_func[0]) is tuple:
+                    #             predicted_label = predicted_func[0][0].split('{')[0]
+                    #             labels.add(predicted_label)
+                    #     except:
+                    #         print(traceback.format_exc())
+                    #         print(predicted_func)
+                    #
+                    for func in functions:
+                        funcname = func.split('{')[-1].split('}')[0]
+                        ind = self.funcName2Ind[funcname]
+                        if ind in ind2labels:
+                            ind2labels[ind] = ind2labels[ind]+Counter(labels)
+                        else:
+                            ind2labels[ind] = Counter(labels)
+                    allLabelName = allLabelName|labels
+        alllabelpath = os.path.join(resultsPath, 'alllabel.p')
+        allLabelList = []
+        #pdb.set_trace()
+        allLabelList.extend(list(allLabelName))
+        p.dump(allLabelList, open(alllabelpath, 'w'))
+        proirBelief = os.path.join(resultsPath, 'proirBelief.p')
+        p.dump(ind2labels, open(proirBelief, 'w'))
+        # call Belief Propagation
+        resultsPath = os.path.join(resultsPath, 'BP_undirected.txt')
+        #TODO: add weights on function labels
+        runBP(graph, ind2labels, allLabelList, resultsPath, len(self.funcName2Ind))

@@ -7,6 +7,10 @@ import pymongo
 from redis import Redis
 import traceback
 from multiprocessing import Pool
+import time
+from binary import TestBinary
+import pdb
+import multiprocessing
 
 def _get_binary_hash(file_path):
     fd = open(file_path, 'rb')
@@ -116,11 +120,11 @@ def output_format(queryList, testkNN):
 
 
 def queryForOneBinary3Gram(qdata, outpath):
-    redis_object = Redis(host='localhost', port=6379, db=3)
-    hashMap = getHashMap("test3-3gram", redis_object, dim=192)
+    # redis_object = Redis(host='localhost', port=6379, db=4)
+    # hashMap = getHashMap("testtree-3gram", redis_object, dim=192)
 
     print("\nStart query for test data")
-    testkNN = doSearch(hashMap, qdata)
+    testkNN = doSearch(hashMap3, qdata)
     p.dump(testkNN, open(outpath, "w"))
 
 def queryForOneBinary2Gram(qdata, outpath):
@@ -222,9 +226,39 @@ def build2gramDB(configname):
 def build3gram(folder):
 
     dotfile = loadFiles(os.path.join(path_lib, folder), ext='.dot')[0]
+    #dotfile = 'libcrypto.so.dot'
     path11 = os.path.join(path_lib, folder, dotfile)
     lib = Library(path11)
+    #lib.libraryName = folder.split('-')[1] + '_' + dotfile.rsplit('.',1)[0]
     lib.libraryName = folder + '_' + dotfile.rsplit('.',1)[0]
+    linklistgraph = lib.callgraphEdges
+    keylist = linklistgraph.keys()
+    for src in keylist:
+        for (des, distance) in linklistgraph[src]:
+            if des in keylist:
+                for (des2, distance2) in linklistgraph[des]:
+                    try:
+                        srcname = lib.libraryName + '{' + lib.ind2FuncName[src] + '}.emb'
+                        srcemb = lib_data[namelist.index(srcname)]
+                        desname = lib.libraryName + '{' + lib.ind2FuncName[des] + '}.emb'
+                        desemb = lib_data[namelist.index(desname)]
+                        desname2 = lib.libraryName + '{' + lib.ind2FuncName[des2] + '}.emb'
+                        desemb2 = lib_data[namelist.index(desname2)]
+                        addToHashMap(hashMap3, [np.concatenate((srcemb, desemb, desemb2))], [[path_lib.split('/')[-1], folder, (srcname, desname, desname2)]])
+                    except:
+                        #print(traceback.format_exc())
+                        pass
+
+    print('load ' + lib.libraryName)
+
+def build3gram2(folder):
+
+    #dotfile = loadFiles(os.path.join(path_lib, folder), ext='.dot')[0]
+    dotfile = 'libcrypto.so.dot'
+    path11 = os.path.join(path_lib, folder, dotfile)
+    lib = Library(path11)
+    lib.libraryName = folder.split('-')[1] + '_' + dotfile.rsplit('.',1)[0]
+    #lib.libraryName = folder + '_' + dotfile.rsplit('.',1)[0]
     linklistgraph = lib.callgraphEdges
     keylist = linklistgraph.keys()
     for src in keylist:
@@ -295,15 +329,81 @@ def build3gram(folder):
    '''
 
 
-def build3gramDB():
-    try:
-        pool = Pool(processes=4)
-        folders = os.listdir(path_lib)
-        print(len(folders))
-        pool.map(build3gram, folders)
-    except:
-        print(traceback.format_exc())
-        pass
+# def build3gramDB():
+#     try:
+#         pool = Pool(processes=1)
+#         folders = os.listdir(path_lib)
+#         print(len(folders))
+#         pool.map(build3gram, folders)
+#     except:
+#         print(traceback.format_exc())
+#         pass
+
+def parallelQuery():
+    dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
+    funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
+    folders = os.listdir(dir)
+    folders.sort()
+    l = len(folders)
+    cores = 8#multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=cores)
+    num = l/cores
+    start_time = time.time()
+    for i in range(cores):
+        pool.apply_async(test_some_binary_ngram, (i*num, (i+1)*num, ))
+    if num*cores < l:
+        pool.apply_async(test_some_binary_ngram, (num*cores, l, ))
+
+    pool.close()
+    pool.join()
+    print "parallelQuery done"
+    print("--- totoal time: %s seconds ---" % (time.time() - start_time))
+
+def test_some_binary_ngram(i, j):
+    hashMap3.buildTree()
+    dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
+    funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
+    folders = os.listdir(dir)
+    folders.sort()
+    print i,j
+    for folder in folders[i:j]:
+        print(folder)
+        start_time = time.time()
+        try:
+            dotfile = loadFiles(os.path.join(dir, folder), ext='.dot')[0]
+            namfile = loadFiles(os.path.join(dir, folder), ext='.nam')[0]
+        except Exception:
+            print traceback.format_exc()
+            continue
+
+        binaryName = folder
+        dotPath = os.path.join(dir, folder, dotfile)
+        namPath = os.path.join(dir, folder, namfile)
+
+        #calculate 3gram
+        candidate_output3 = os.path.join(dir, folder, 'test_kNN_0508_3gram.p')
+        count_output3 = os.path.join(dir, folder, 'out_0508_3gram.p')
+        '''
+        candidate_output2 = os.path.join(dir, folder, 'test_kNN_0504_2gram.p')
+        count_output2 = os.path.join(dir, folder, 'out_0507_2gram.p')
+        '''
+        if os.path.isfile(count_output3):
+            continue
+
+        testbin = TestBinary(binaryName, dotPath, funcembFolder)
+        testbin.buildNGram(namPath)
+        if os.path.isfile(count_output3):
+            #result3gram = p.load(open(count_output3, 'rb'))
+            pass
+        else:
+            if os.path.isfile(candidate_output3):
+                pass
+            else:
+                queryForOneBinary3Gram(testbin.threeGramList, candidate_output3)
+
+            result3gram = testbin.count(candidate_output3)
+            p.dump(result3gram, open(count_output3, 'w'))
+        print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == '__main__':
     configname = ["test3-one", "test3-2gram", "test3-3gram"]
@@ -311,19 +411,28 @@ if __name__ == '__main__':
     #build1gramDB(configname[0])
     #hashMap1 = build2gramDB(configname[1])
     #hashMap1.grouping()
-    redis_object3 = Redis(host='localhost', port=6379, db=3)
+    redis_object3 = Redis(host='localhost', port=6379, db=4)
     global hashMap3
-    hashMap3 = getHashMap("test3-3gram", redis_object3, dim=192)
-    global lib_data, namelist
-    #lib_data, namelist = loadDataFromFolder(
-    #    '/rhome/lgao027/shared/data/funcemb_zlibO2')
-    lib_data, namelist = loadDataFromFolder(
-            '/rhome/lgao027/shared/data/funcemb_openssl/')
-    global path_lib
-    #path_lib = '/rhome/lgao027/shared/data/zlib-O2'
-    path_lib = '/rhome/lgao027/shared/data/openssl'
-    # hashMap2 = build3gramDB("3gram-temp")
-    build3gramDB()
+    hashMap3 = getHashMap("testtree-3gram", redis_object3, dim=192)
+    hashMap3.ungrouping()
+    #hashMap3.buildTree()
+    #pdb.set_trace()
+    # global lib_data, namelist
+    # lib_data, namelist = loadDataFromFolder(
+    #    '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_zlibO2')
+    # global path_lib
+    # path_lib = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'
+    # for folder in os.listdir(path_lib):
+    #     build3gram(folder)
+    # lib_data, namelist = loadDataFromFolder(
+    #        '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_openssl/')
+    # path_lib = '/home/yijiufly/Downloads/codesearch/data/openssl'
+    # for folder in os.listdir(path_lib):
+    #     build3gram2(folder)
+    # hashMap3.grouping()
+    #parallelQuery()
+    #test_some_binary_ngram(0,90)
+
     # redis_object = Redis(host='localhost', port=6379, db=3)
     # hashMap = getHashMap(configname[2], redis_object, dim = 192)
     #cleanAllBuckets(hashMap)

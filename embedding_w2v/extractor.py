@@ -4,7 +4,7 @@ import time
 import binaryninja as binja
 import pickle
 from gensim.models.keyedvectors import KeyedVectors
-from obj.base import Object as Obj
+from obj import Obj
 import os
 # import sys
 # sys.path.insert(0,'/home/yijiufly/Downloads/binaryninja/python')

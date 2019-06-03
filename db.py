@@ -1,5 +1,5 @@
 from nearpy import Engine
-from nearpy.hashes import RandomBinaryProjections, RandomDiscretizedProjections, RandomBinaryProjectionTree
+from nearpy.hashes import RandomBinaryProjections, RandomDiscretizedProjections, RandomBinaryProjectionTree, RandomBinaryProjectionTreeNode
 import numpy as np
 from redis import Redis
 import pymongo
@@ -39,12 +39,13 @@ class db:
 
         if config is None:
             # Config is not existing, create hash from scratch, with 20 projections
-            self.lshash = RandomBinaryProjectionTree(configname, 50, 1000)
+            self.lshash = RandomBinaryProjections(configname, 50)
             print('new configuration!')
         else:
             # Config is existing, create hash with None parameters
-            self.lshash = RandomBinaryProjectionTree(None, None, None)
+            self.lshash = RandomBinaryProjections(None, None)
             # Apply configuration loaded from redis
+            #config['minimum_result_size']=500
             self.lshash.apply_config(config)
 
         # Create engine for feature space of 64 dimensions and use our hash.
@@ -86,6 +87,7 @@ class db:
 
 
     def querying(self, query):
+        #pdb.set_trace()
         start_time = time.time()
         N_query = []
         #vector_filters = [NearestFilter(5)]
@@ -114,6 +116,32 @@ class db:
     def _format_hash_prefix(self, hash_name):
         return "nearpy_{}_".format(hash_name)
 
+    def recalculate_size(self, tree_node, depth):
+        if depth == 50:
+            bucket_content = self.engine.storage.get_bucket(self.lshash.hash_name, tree_node.bucket_key,)
+            tree_node.vector_count = len(bucket_content)
+            return
+        count = 0
+        #pdb.set_trace()
+        for node_key in tree_node.childs:
+            nodes = tree_node.childs[node_key]
+            self.recalculate_size(nodes, depth+1)
+            count += nodes.vector_count
+        tree_node.vector_count = count
+
+    def ungrouping(self):
+        keys = self.engine.storage.get_all_bucket_keys(self.lshash.hash_name)
+        for key in keys:
+            redis_key = self._format_redis_key(self.lshash.hash_name, key)
+            bucket_content = self.engine.storage.get_bucket(self.lshash.hash_name, key,)
+            self.engine.storage.redis_object.delete(redis_key)
+            for group in bucket_content:
+                vector = group[0]
+                ngramList = group[1]
+                for ngram in ngramList:
+                    self.engine.storage.store_vector(self.lshash.hash_name, key, vector, ngram)
+            print "ungroup one bucket"
+
     def grouping(self):
         emb = Embedding()
         keys = self.engine.storage.get_all_bucket_keys(self.lshash.hash_name)
@@ -129,7 +157,7 @@ class db:
             eleNodeMap = genNodeList(eleList)
             for i in range(len(sim_matrix)):
                 for j in range(i, len(sim_matrix)):
-                    if sim_matrix[i][j] > 0.999999:
+                    if sim_matrix[i][j] > 0.99999999:
                         quickUnion((i,j), eleNodeMap)
             result = [i.num for i in eleNodeMap.values()]
             #print result
@@ -146,3 +174,14 @@ class db:
                 self.engine.storage.store_vector(self.lshash.hash_name, key, groups[element][0], groups[element][1:])
                 #self.engine.store_vector(groups[element][0], groups[element][1:])
             print "group one bucket"
+        ##when the lshash is tree
+        # print("before grouping: " + str(self.lshash.tree_root.vector_count))
+        # self.recalculate_size(self.lshash.tree_root, 0)
+        # print("after grouping:" + str(self.lshash.tree_root.vector_count))
+
+    def buildTree(self):
+        keys = self.engine.storage.get_all_bucket_keys(self.lshash.hash_name)
+        for key in keys:
+            bucket_content = self.engine.storage.get_bucket(self.lshash.hash_name, key,)
+            for content in bucket_content:
+                self.lshash.tree_root.insert_entry_for_bucket(key, 0)
