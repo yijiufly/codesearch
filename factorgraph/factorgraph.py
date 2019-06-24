@@ -891,7 +891,7 @@ class Factor(object):
 
             convg = True
             if len(self._rvs) == 1:
-                o = np.array([0.6,0.4])
+                o = np.array([0.8,0.2])
                 self._outgoing[0] = o
             elif largest < 0.5:
                 for i, rv in enumerate(self._rvs):
