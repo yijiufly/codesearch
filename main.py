@@ -6,14 +6,15 @@ import operator
 import pdb
 from binary import TestBinary
 from library import Library
-#from lshknn import queryForOneBinary3Gram, queryForOneBinary2Gram
+from lshknn import queryForOneBinary3Gram, queryForOneBinary2Gram
 import sys
 sys.path.append('./SPTAG/Release')
-from searchSPTAG import queryForOneBinary3Gram
+#from searchSPTAG import queryForOneBinary3Gram
 import os
 import time
 import traceback
 import multiprocessing
+import factorgraph as fg
 
 def loadkNNGraph(querykNNPath=None):
     knn = []
@@ -182,11 +183,11 @@ def test3gram():
 
 def parallelQuery():
     dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
-    funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
+    #funcembFolder = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing'
     folders = os.listdir(dir)
     folders.sort()
     l = len(folders)
-    cores = 8#multiprocessing.cpu_count()
+    cores = 4#multiprocessing.cpu_count()
     pool = multiprocessing.Pool(processes=cores)
     num = l/cores
     start_time = time.time()
@@ -211,13 +212,16 @@ def test_some_binary_ngram(i, j):
         print(folder)
         start_time = time.time()
         try:
-            dotfiles = loadFiles(os.path.join(dir, folder), ext='.dot')
+            dotfiles = loadFiles(os.path.join(dir, folder), ext='_bn.dot')
+            #dotfiles.sort()
             namfiles = loadFiles(os.path.join(dir, folder), ext='.nam')
             embfiles = loadFiles(os.path.join(dir, folder), ext='.emb')
         except Exception:
             print traceback.format_exc()
             continue
+        #pdb.set_trace()
         for i in range(len(dotfiles)):
+
             dotfile = dotfiles[i]
             namfile = namfiles[i]
             embfile = embfiles[i]
@@ -230,28 +234,25 @@ def test_some_binary_ngram(i, j):
             # candidate_output3 = os.path.join(dir, folder, binaryName+'_test_kNN_0521_3gram.p')
             # count_output3 = os.path.join(dir, folder, binaryName+'_BP_undirected.txt')
             binary_dir = os.path.join(dir, folder)
-            candidate_output2 = os.path.join(dir, folder, 'test_kNN_0502_2gram.p')
-            '''
-            count_output2 = os.path.join(dir, folder, 'out_0507_2gram.p')
-            '''
-            if os.path.isfile(count_output3):
-                continue
+            candidate_output = os.path.join(dir, folder, 'test_kNN_factorgraph_3gram.p')
+            count_output = os.path.join(dir, folder, 'out_factorgraph0620_3gram.p')
+            #if os.path.isfile(count_output):
+                #result3gram = p.load(open(count_output3, 'rb'))
+                #continue
 
             testbin = TestBinary(binaryName, dotPath, embPath)
 
-            if os.path.isfile(count_output3):
-                #result3gram = p.load(open(count_output3, 'rb'))
+            if os.path.isfile(candidate_output):
                 pass
             else:
-                if os.path.isfile(candidate_output3):
-                    pass
-                else:
-                    testbin.buildNGram(namPath)
-                    queryForOneBinary3Gram(testbin.threeGramList, candidate_output3)
+                testbin.buildNGram(namPath)
+                queryForOneBinary3Gram(testbin.threeGramList, candidate_output)
+                #queryForOneBinary2Gram(testbin.twoGramList, candidate_output)
 
             #testbin.callBP(candidate_output3, candidate_output2, namPath, binary_dir)
-            #result3gram = testbin.count(candidate_output3)
-            #p.dump(result3gram, open(count_output3, 'w'))
+            result = runFactorGraph3(candidate_output)
+            #result = testbin.count(candidate_output)
+            p.dump(result, open(count_output, 'w'))
         print("--- %s seconds ---" % (time.time() - start_time))
 '''
         #2gram
@@ -267,6 +268,273 @@ def test_some_binary_ngram(i, j):
             p.dump(result2gram, open(count_output2, 'w'))
 '''
 
+def runFactorGraph(queryPath_3gram, threshold=0.999):
+    potential1 = np.array([
+            [0.99, 0.01],
+            [0.01, 0.99],
+    ])
+    # Make an empty graph
+    g = fg.Graph()
+    global_dict = dict()
+    query_3gram = p.load(open(queryPath_3gram, 'rb'))
+    for i in query_3gram:
+        if i[2] > threshold and len(i[1]) < 220:
+            test_src = i[0][0]
+            test_des = i[0][1]
+            test_des2 = i[0][2]
+            if test_src == test_des == test_des2:
+                continue
+
+            funcList = i[1]
+            for predicted_func in funcList:
+                # src = predicted_func[0]
+                # des = predicted_func[1]
+                # des2 = predicted_func[2]
+                src = predicted_func[1] + '{' + predicted_func[2][0] + '}'
+                des = predicted_func[1] + '{' + predicted_func[2][1] + '}'
+                des2 = predicted_func[1] + '{' + predicted_func[2][2] + '}'
+                # find the src function if it's already in the dict,
+                # otherwise, add it to the dict
+                if test_src in global_dict:
+                    if src in global_dict[test_src]:
+                        pass
+                    else:
+                        global_dict[test_src].append(src)
+                else:
+                    global_dict[test_src] = [src]
+                # do the same thing to des function
+                if test_des in global_dict:
+                    if des in global_dict[test_des]:
+                        pass
+                    else:
+                        global_dict[test_des].append(des)
+                else:
+                    global_dict[test_des] = [des]
+                if test_des2 in global_dict:
+                    if des2 in global_dict[test_des2]:
+                        pass
+                    else:
+                        global_dict[test_des2].append(des2)
+                else:
+                    global_dict[test_des2] = [des2]
+
+    for i in query_3gram:
+        if i[2] > threshold and len(i[1]) < 220:
+            test_src = i[0][0]
+            test_des = i[0][1]
+            test_des2 = i[0][2]
+            if test_src == test_des == test_des2:
+                continue
+
+            funcList = i[1]
+            for predicted_func in funcList:
+                # src = predicted_func[0]
+                # des = predicted_func[1]
+                # des2 = predicted_func[2]
+                src = predicted_func[1] + '{' + predicted_func[2][0] + '}'
+                des = predicted_func[1] + '{' + predicted_func[2][1] + '}'
+                des2 = predicted_func[1] + '{' + predicted_func[2][2] + '}'
+                
+    print 'Add Factors Between Nodes'
+    keylist = global_dict.keys()
+    print(len(keylist))
+    for key in keylist:
+        funclist = global_dict[key]
+        idxs=[]
+        if len(funclist) > 0:
+            for id1 in range(len(funclist)):
+                idxs.append(key+'##'+funclist[id1])
+            g.factor(idxs, potential=None, ftype='2')
+    '''
+    from collections import Counter
+    votes = Counter()
+    for key in keylist:
+        print key
+        funclist = global_dict[key]
+        label=set()
+        idxs=[]
+        for id1 in range(len(funclist)):
+            print funclist[id1]
+            predicted_label = funclist[id1].split('{')[0]
+            label.add(predicted_label)
+        # if 'openssl-OpenSSL_0_9_7h' in label and 'openssl-OpenSSL_0_9_7i' not in label:
+        #     print key
+        votes += Counter(label)
+
+    sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
+    print(sorted_count)
+    '''
+    print 'Begin Running LBP'
+    iters, converged = g.lbp(normalize=True, progress=False)
+    print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
+    print
+    # Print out the final marginals
+    counts = g.count_rv_marginals(normalize=True)
+    return counts
+
+def runFactorGraph3(queryPath_3gram, threshold=0.999):
+    potential1 = np.array([
+            [0.99, 0.01],
+            [0.01, 0.99],
+    ])
+    # Make an empty graph
+    g = fg.Graph()
+    global_dict = dict()
+    query_3gram = p.load(open(queryPath_3gram, 'rb'))
+    for i in query_3gram:
+        if i[2] > threshold and len(i[1]) < 220:
+            test_src = i[0][0]
+            test_des = i[0][1]
+            test_des2 = i[0][2]
+            if test_src == test_des == test_des2:
+                continue
+            funcList = i[1]
+            for predicted_func in funcList:
+                # src = predicted_func[0]
+                # des = predicted_func[1]
+                # des2 = predicted_func[2]
+                src = predicted_func[1] + '{' + predicted_func[2][0] + '}'
+                des = predicted_func[1] + '{' + predicted_func[2][1] + '}'
+                des2 = predicted_func[1] + '{' + predicted_func[2][2] + '}'
+                # find the src function if it's already in the dict,
+                # otherwise, add it to the dict, and add it to graph
+                if test_src in global_dict:
+                    if src in global_dict[test_src]:
+                        pass
+                    else:
+                        global_dict[test_src].append(src)
+                        g.rv(test_src+'##'+src, 2)
+                else:
+                    global_dict[test_src] = [src]
+                    g.rv(test_src+'##'+src, 2)
+                # do the same thing to des function
+                if test_des in global_dict:
+                    if des in global_dict[test_des]:
+                        pass
+                    else:
+                        global_dict[test_des].append(des)
+                        g.rv(test_des+'##'+des, 2)
+                else:
+                    global_dict[test_des] = [des]
+                    g.rv(test_des+'##'+des, 2)
+                if test_des2 in global_dict:
+                    if des2 in global_dict[test_des2]:
+                        pass
+                    else:
+                        global_dict[test_des2].append(des2)
+                        g.rv(test_des2+'##'+des2, 2)
+                else:
+                    global_dict[test_des2] = [des2]
+                    g.rv(test_des2+'##'+des2, 2)
+                #add factor between the two rvs
+                # if test_src == 'nginx-{openssl-0.9.7e}{zlib-1.2.7.3}{app_info_free}.emb':
+                #     pdb.set_trace()
+                if test_src != test_des:
+                    g.factor([test_src+'##'+src, test_des+'##'+des], potential=potential1)
+                if test_des != test_des2:
+                    g.factor([test_des+'##'+des, test_des2+'##'+des2], potential=potential1)
+
+    print 'Add Factors Between Nodes'
+    keylist = global_dict.keys()
+    print(len(keylist))
+    for key in keylist:
+        funclist = global_dict[key]
+        idxs=[]
+        if len(funclist) > 0:
+            for id1 in range(len(funclist)):
+                idxs.append(key+'##'+funclist[id1])
+            g.factor(idxs, potential=None, ftype='2')
+
+    from collections import Counter
+    votes = Counter()
+    for key in keylist:
+        #print key
+        funclist = global_dict[key]
+        label=set()
+        idxs=[]
+        for id1 in range(len(funclist)):
+            #print funclist[id1]
+            predicted_label = funclist[id1].split('{')[0]
+            label.add(predicted_label)
+        # if 'openssl-OpenSSL_0_9_7h' in label and 'openssl-OpenSSL_0_9_7i' not in label:
+        #     print key
+        votes += Counter(label)
+
+    sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
+    print(sorted_count)
+
+    print 'Begin Running LBP'
+    iters, converged = g.lbp(normalize=True, progress=False)
+    print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
+    print
+    # Print out the final marginals
+    counts = g.count_rv_marginals(normalize=True)
+    return counts
+
+def runFactorGraph2(queryPath_2gram, threshold=0.999):
+    potential1 = np.array([
+            [0.999, 0.001],
+            [0.001, 0.999],
+    ])
+    # Make an empty graph
+    g = fg.Graph()
+    global_dict = dict()
+    #pdb.set_trace()
+    query_2gram = p.load(open(queryPath_2gram, 'rb'))
+    for i in query_2gram:
+        if i[2] > threshold and len(i[1]) < 220:
+            test_src = i[0][0]
+            test_des = i[0][1]
+            # if test_src == test_des:
+            #     continue
+            funcList = i[1]
+            for predicted_func in funcList:
+                src = predicted_func[1] + '{' + predicted_func[2][0] + '}'
+                des = predicted_func[1] + '{' + predicted_func[2][1] + '}'
+                # find the src function if it's already in the dict,
+                # otherwise, add it to the dict, and add it to graph
+                if test_src in global_dict:
+                    if src in global_dict[test_src]:
+                        pass
+                    else:
+                        global_dict[test_src].append(src)
+                        g.rv(test_src+'##'+src, 2)
+                else:
+                    global_dict[test_src] = [src]
+                    g.rv(test_src+'##'+src, 2)
+                # do the same thing to des function
+                if test_des in global_dict:
+                    if des in global_dict[test_des]:
+                        pass
+                    else:
+                        global_dict[test_des].append(des)
+                        g.rv(test_des+'##'+des, 2)
+                else:
+                    global_dict[test_des] = [des]
+                    g.rv(test_des+'##'+des, 2)
+                #add factor between the two rvs
+                # if test_src == 'nginx-{openssl-0.9.7e}{zlib-1.2.7.3}{app_info_free}.emb':
+                #     pdb.set_trace()
+                if test_src != test_des or src != des:
+                    g.factor([test_src+'##'+src, test_des+'##'+des], potential=potential1, ftype='1')
+
+    print 'Add Factors Between Nodes'
+    keylist = global_dict.keys()
+    print(len(keylist))
+    for key in keylist:
+        funclist = global_dict[key]
+        idxs=[]
+        for id1 in range(len(funclist)):
+            idxs.append(key+'##'+funclist[id1])
+        g.factor(idxs, potential=None, ftype='2')
+    print 'Begin Running LBP'
+    iters, converged = g.lbp(normalize=True, progress=False)
+    print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
+    #g.print_messages()
+    print
+    # Print out the final marginals
+    counts = g.count_rv_marginals(normalize=True)
+    return g
 
 
 def test_some_binary():
@@ -295,5 +563,5 @@ def test_some_binary():
         print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == '__main__':
-    test_some_binary_ngram(0,90)
+    test_some_binary_ngram(11,12)
     #parallelQuery()

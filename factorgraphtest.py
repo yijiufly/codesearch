@@ -4,43 +4,39 @@ import factorgraph as fg
 g = fg.Graph()
 
 # Add some discrete random variables (RVs)
-g.rv('a', 2)#a1,b1
-g.rv('b', 3)#a2,b2,a5
-g.rv('c',1)#a6
-g.rv('d',1)#a7
-
-# Add some factors, unary and binary
-g.factor(['a'], potential=np.array([0.5, 0.5]))
-g.factor(['b'], potential=np.array([0.33, 0.33, 0.33]))
-g.factor(['c'], potential=np.array([1.0]))
-g.factor(['d'], potential=np.array([1.0]))
-g.factor(['b', 'a'], potential=np.array([
+g.rv('a1', 2)#a1,b1
+g.rv('a2', 2)#a2,b2,a5
+g.rv('a5',2)#a6
+g.rv('a4',2)#a7
+g.rv('a3',2)#a7
+potential1 = np.array([
+        [0.99, 0.01],
+        [0.01, 0.99],
+])
+potential2 = np.array([
+        [0.3, 0.7],
         [0.9, 0.1],
-        [0.1, 0.9],
-        [0.1, 0.1],
-]))
-# g.factor(['a', 'b'], potential=np.array([
-#         [0.8, 0.1, 0.1],
-#         [0.1, 0.8, 0.1],
-# ]))
-g.factor(['c', 'b'], potential=np.array([
-        [0.1, 0.1, 0.9],
-]))
-# g.factor(['b', 'c'], potential=np.array([
-#         [0.1],
-#         [0.1],
-#         [0.8],
-# ]))
-g.factor(['d', 'b'], potential=np.array([
-        [0.9, 0.1, 0.1],
-]))
+])
+potential3 = np.array([0.1,0.9,0.9,0.1,0.1,0.1,0.1,0.1]).reshape(2,2,2)
+# Add some factors, unary and binary
+#g.factor(['a2'], potential=np.array([0.1, 0.9]), ftype='1')
+# g.factor(['b2'], potential=np.array([0.67,0.33]))
+# g.factor(['a2'], potential=np.array([0.67,0.33]))
+# g.factor(['a5'], potential=np.array([0.67,0.33]))
+g.factor(['a2', 'a1'], potential=potential1, ftype='1')
+g.factor(['a1', 'a4', 'a5'], potential=None, ftype='2')
+g.factor(['a3', 'a5'], potential=potential1, ftype='1')
+#g.factor(['a2', 'b2', 'a5'], potential=None, ftype='2')
+g.factor(['a2', 'a3'], potential=None, ftype='2')
+# g.factor(['b2', 'a5'], potential=None, ftype='2')
+#g.factor(['a2', 'b2', 'a5'], potential=potential3)
 # g.factor(['b', 'd'], potential=np.array([
 #         [0.8],
 #         [0.1],
 #         [0.1],
 # ]))
 # Run (loopy) belief propagation (LBP)
-iters, converged = g.lbp(normalize=True)
+iters, converged = g.lbp(normalize=True, progress=True)
 print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
 print
 

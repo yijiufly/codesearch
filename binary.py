@@ -6,11 +6,13 @@ import traceback
 import os
 from sslh.test_SSLH_inference import runBP
 from collections import Counter
+
+
 class Binary:
     def __init__(self, path, path2):
         raise NotImplementedError
 
-    def generatefuncNameFull(self, path):
+    def generatefuncNameFullIDA(self, path):
         self.graph = pydot.graph_from_dot_file(path)
         print('graph loaded')
         nodeList = self.graph.get_node_list()
@@ -25,6 +27,22 @@ class Binary:
         self.funcName2Ind = func2ind
         self.ind2FuncName = ind2func
 
+    def loadCallGraph(self, path):
+        self.graph = pydot.graph_from_dot_file(path)
+        print('graph loaded')
+        print(path)
+        nodeList = self.graph.get_node_list()
+        func2ind = dict()
+        ind2func = dict()
+        #load all the nodes in the callgraph
+        for i, node in enumerate(nodeList):
+            nodename = node.get_name().strip('\"')
+            func2ind[nodename] = i
+            ind2func[i] = nodename
+
+        self.funcName2Ind = func2ind
+        self.ind2FuncName = ind2func
+
     def generatefuncNameFilted(self, path):
         func2ind = dict()
         funcNameList = p.load(open(path, 'r'))
@@ -35,7 +53,7 @@ class Binary:
                 func2ind[func] = -1
         self.funcNameFilted = func2ind
 
-    def getGraphFromPath(self, path):
+    def getGraphFromPath(self):
         edgeList = self.graph.get_edge_list()
         linklistgraph = dict()
         #smallnodes = dict()
@@ -47,10 +65,10 @@ class Binary:
                 linklistgraph[src].append((des, 1))
             else:
                 linklistgraph[src] = [(des, 1)]
-            if des in linklistgraph:
-               linklistgraph[des].append((src, 1))
-            else:
-               linklistgraph[des] = [(src, 1)]
+            # if des in linklistgraph:
+            #    linklistgraph[des].append((src, 1))
+            # else:
+            #    linklistgraph[des] = [(src, 1)]
         print('edges loaded')
         # keylist = linklistgraph.keys()
         # findsmallnodes = -1
@@ -87,7 +105,7 @@ class Binary:
                 else:
                    self.callgraphEdges[str(ind2)] = [(ind1, 1)]
 
-    def loadOneQueryBinary(self, funcnamepath, embFile):
+    def loadOneBinary(self, funcnamepath, embFile):
         names = p.load(open(funcnamepath, 'r'))
         data = p.load(open(embFile, 'r'))
         self.ind2emb=dict()
@@ -100,7 +118,7 @@ class Binary:
 
     def buildNGram(self, namPath):
         #pdb.set_trace()
-        self.loadOneQueryBinary(namPath, self.embFile)
+        self.loadOneBinary(namPath, self.embFile)
         twoGramList = []
         linklistgraph = self.callgraphEdges
         keylist = linklistgraph.keys()
@@ -108,12 +126,13 @@ class Binary:
             for (des, distance) in linklistgraph[src]:
                 try:
                     #pdb.set_trace()
-                    srcname = self.ind2FuncName[src]
-                    srcemb = self.ind2emb[src]
-                    desname = self.ind2FuncName[des]
-                    desemb = self.ind2emb[des]
-                    twoGramList.append([np.concatenate((srcemb, desemb)),(srcname, desname)])
-
+                    src = src.strip('\"')
+                    des = des.strip('\"')
+                    srcind = self.funcName2Ind[src]
+                    srcemb = self.ind2emb[srcind]
+                    desind = self.funcName2Ind[des]
+                    desemb = self.ind2emb[desind]
+                    twoGramList.append([np.concatenate((srcemb, desemb)),(src, des)])
                 except:
                     #print(traceback.format_exc())
                     pass
@@ -125,13 +144,16 @@ class Binary:
                 if des in keylist:
                     for (des2, distance2) in linklistgraph[des]:
                         try:
-                            srcname = self.ind2FuncName[src]
-                            srcemb = self.ind2emb[src]
-                            desname = self.ind2FuncName[des]
-                            desemb = self.ind2emb[des]
-                            desname2 = self.ind2FuncName[des2]
-                            desemb2 = self.ind2emb[des2]
-                            threeGramList.append([np.concatenate((srcemb, desemb, desemb2)), (srcname, desname, desname2)])
+                            src = src.strip('\"')
+                            des = des.strip('\"')
+                            des2 = des2.strip('\"')
+                            srcind = self.funcName2Ind[src]
+                            srcemb = self.ind2emb[srcind]
+                            desind = self.funcName2Ind[des]
+                            desemb = self.ind2emb[desind]
+                            desind2 = self.funcName2Ind[des2]
+                            desemb2 = self.ind2emb[desind2]
+                            threeGramList.append([np.concatenate((srcemb, desemb, desemb2)), (src, des, des2)])
                         except:
                             #print(traceback.format_exc())
                             pass
@@ -143,10 +165,10 @@ class Binary:
 class TestBinary(Binary):
     def __init__(self, binaryName, dotPath, embFile):
         print 'init testing binary'
-        self.binaryName = binaryName
-        self.generatefuncNameFull(dotPath)
-        self.getGraphFromPath(dotPath)
-        self.embFile = embFile
+        #self.binaryName = binaryName
+        #self.loadCallGraph(dotPath)
+        #self.getGraphFromPath()
+        #self.embFile = embFile
 
     def getRank1Neighbors(self, selectedNeighbors, funcNameList):
         print 'analyse label count'
@@ -277,6 +299,9 @@ class TestBinary(Binary):
         sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
         print(sorted_count)
         return sorted_count
+
+
+
 
     def callBP(self, queryPath_3gram, queryPath_2gram, namPath, resultsPath, threshold=0.999):
         # prepare graph [[src, des, weight],[],...]
