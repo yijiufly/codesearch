@@ -47,7 +47,7 @@ import signal
 import pdb
 # 3rd party
 import numpy as np
-
+import pickle as p
 
 # Constants
 # -----------------------------------------------------------------------------
@@ -64,7 +64,7 @@ DEBUG_DEFAULT = True
 
 # This is the maximum number of iterations that we let loopy belief propagation
 # run before cutting it off.
-LBP_MAX_ITERS = 20
+LBP_MAX_ITERS = 5
 
 # Otherwise we'd just make some kinda class to do this anyway.
 E_STOP = False
@@ -347,8 +347,8 @@ class Graph(object):
                 best_a = full_a
         return best_a, best_r
 
-    def lbp(self, init=True, normalize=False, max_iters=LBP_MAX_ITERS,
-            progress=False):
+    def lbp(self, global_dict, init=True, normalize=False, max_iters=LBP_MAX_ITERS,
+            progress=False, c_percentage=0.99):
         '''
         Loopy belief propagation.
 
@@ -391,6 +391,7 @@ class Graph(object):
             self.init_messages(nodes)
 
         cur_iter, converged = 0, False
+        percentage = 0
         while cur_iter < max_iters and not converged and not E_STOP:
             # Bookkeeping
             cur_iter += 1
@@ -400,12 +401,17 @@ class Graph(object):
                 logger.debug('\titeration %d / %d (max)', cur_iter, max_iters)
 
             # Comptue outgoing messages:
-            converged = True
+            percentage = 0
             for n in nodes:
                 n_converged = n.recompute_outgoing(normalize=normalize)
-                converged = converged and n_converged
-
-        return cur_iter, converged
+                if n_converged:
+                    percentage += 1
+            percentage /= len(nodes)*1.0
+            if percentage > c_percentage:
+                converged = 1
+            #print cur_iter, percentage
+            #self.count_rv_marginals2(global_dict, normalize=True)
+        return cur_iter, percentage
 
     def _sorted_nodes(self):
         '''
@@ -475,7 +481,7 @@ class Graph(object):
             tuples += [(rv, marg)]
         return tuples
 
-    def print_rv_marginals(self, rvs=None, normalize=False):
+    def print_rv_marginals(self, global_dict, rvs=None, normalize=False):
         '''
         Displays marginals for rvs.
 
@@ -505,7 +511,80 @@ class Graph(object):
             if len(rv.labels) > 0:
                 vals = rv.labels
             for i in range(len(vals)):
-                print '\t', vals[i], '\t', marg[i]
+                # if i == len(vals)-1:
+                #     name = 'None'
+                # else:
+                #     name = global_dict[str(rv)][i]
+                name = global_dict[str(rv)][i]
+                print '\t', vals[i],'\t', name, '\t', marg[i]
+
+        p.dump(tuples, open('tuples2.p', 'w'))
+        p.dump(global_dict, open('dict2.p', 'w'))
+        return self.count_rv_marginals2(global_dict, normalize=True)
+
+    def print_None_accuracy(self, global_dict, folder, rvs=None, normalize=False):
+        tuples = self.rv_marginals(rvs, normalize)
+        prediction = dict()
+        nameprediction = dict()
+        for rv, marg in tuples:
+            rv_label = str(rv)
+            largest = 0
+            for label in marg:
+                if label > largest:
+                    largest = label
+            names = global_dict[rv_label]
+            names.append('None')
+            for i, label in enumerate(marg):
+                if np.isclose(label, largest):
+                    versionname = names[i].split('{')[0]
+                    if names[i] == 'None':
+                        funcname = 'None'
+                    else:
+                        funcname = names[i].split('{')[1].split('}')[0]
+                    if rv_label in prediction:
+                        prediction[rv_label].append(versionname)
+                        nameprediction[rv_label].add(funcname)
+                    else:
+                        prediction[rv_label]=[versionname]
+                        nameprediction[rv_label] = set([funcname])
+        falsepositive = 0
+        truthpositive = 0
+        truthnegtive = 0
+        falsenegtive = 0
+        version = folder.split('{')[1].split('}')[0].split('-')[1].replace('.','_')
+        truth = 'libcryptoopenssl-OpenSSL_'+version
+        truth2 = 'libsslopenssl-OpenSSL_'+version
+        for rv, marg in tuples:
+            rv_label = str(rv)
+            versionlabel = set()
+            for label in global_dict[rv_label]:
+                l = label.split('{')[0]
+                versionlabel.add(l)
+
+            # if truth in versionlabel :
+            #     if prediction[rv_label]==['None']:
+            #         falsepositive += 1
+            #     else:
+            #         truthnegtive += 1
+            # else:
+            #     if prediction[rv_label]==['None']:
+            #         truthpositive += 1
+            #     else:
+            #         falsenegtive += 1
+            if truth in versionlabel or truth2 in versionlabel:
+                if 'None' in prediction[rv_label]:
+                    falsepositive += 1
+                else:
+                    truthnegtive += 1
+            else:
+                if 'None' in prediction[rv_label]:
+                    truthpositive += 1
+                else:
+                    falsenegtive += 1
+
+        print folder + ', ' + str(falsepositive) + ', ' + str(truthpositive) + ', ' + str(truthnegtive) + ', ' + str(falsenegtive)
+        return self.count_rv_marginals2(global_dict, normalize=True)
+
 
     def count_rv_marginals(self, rvs=None, normalize=False):
         # Extract
@@ -535,7 +614,7 @@ class Graph(object):
 
         sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
         print(sorted_count)
-
+        '''
         keylist = prediction.keys()
         for key in keylist:
             print key
@@ -544,7 +623,75 @@ class Graph(object):
             for id1 in range(len(funclist)):
                 print funclist[id1]
             print
+        '''
+        return sorted_count
 
+    def count_rv_marginals2(self, global_dict, rvs=None, normalize=False):
+        # Extract
+        from collections import Counter
+        tuples = self.rv_marginals(rvs, normalize)
+        votes = Counter()
+        prediction = dict()
+        # Display
+        for rv, marg in tuples:
+            rv_label = str(rv)
+            largest = 0
+            for label in marg:
+                if label > largest:
+                    largest = label
+            names = global_dict[rv_label]
+            names.append('None')
+            for i, label in enumerate(marg):
+                if np.isclose(label, largest):
+                    if rv_label in prediction:
+                        prediction[rv_label].append(names[i])
+                    else:
+                        prediction[rv_label]=[names[i]]
+        finalprediction = dict()
+        keylist = prediction.keys()
+        for key in keylist:
+            funclist = prediction[key]
+            label=set()
+            #print key
+            for func in funclist:
+                predicted_label = func.split('{')[0]
+                #print '\t', predicted_label
+                if predicted_label == 'None':
+                    continue
+                    # label=set()
+                    # break
+                label.add(predicted_label)
+            # if 'libcryptoopenssl-OpenSSL_0_9_8m' not in label and 'libsslopenssl-OpenSSL_0_9_8m' not in label:
+            #     print key
+            #     print prediction[key]
+            #     print global_dict[key]
+            votes += Counter(label)
+            finalprediction[key] = label
+
+        sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
+        #p.dump(finalprediction, open('iteration/max'+str(LBP_MAX_ITERS),'w'))
+        #print(sorted_count)
+        '''
+        keylist = prediction.keys()
+        for key in keylist:
+            print key
+            funclist = prediction[key]
+            idxs=[]
+            for id1 in range(len(funclist)):
+                print funclist[id1]
+            print
+        '''
+        # finalprediction = dict()
+        # keylist = global_dict.keys()
+        # for key in keylist:
+        #     label = set()
+        #     funclist = global_dict[key]
+        #     for func in funclist:
+        #         predicted_label = func.split('{')[0]
+        #         label.add(predicted_label)
+        #     finalprediction[key] = label
+        #
+        # p.dump(finalprediction, open('iteration/max'+str(0),'w'))
         return sorted_count
 
     def debug_stats(self):
@@ -687,6 +834,8 @@ class RV(object):
         '''
         incoming = []
         total = np.ones(self.n_opts)
+        total[-1] = 1
+
         for i, f in enumerate(self._factors):
             m = f.get_outgoing_for(self)
             if self.debug:
@@ -891,7 +1040,7 @@ class Factor(object):
 
             convg = True
             if len(self._rvs) == 1:
-                o = np.array([0.8,0.2])
+                o = np.array([0.6,0.4])
                 self._outgoing[0] = o
             elif largest < 0.5:
                 for i, rv in enumerate(self._rvs):

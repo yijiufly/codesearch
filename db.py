@@ -39,7 +39,7 @@ class db:
 
         if config is None:
             # Config is not existing, create hash from scratch, with 20 projections
-            self.lshash = RandomBinaryProjections(configname, 50)
+            self.lshash = RandomBinaryProjections(configname, 55)
             print('new configuration!')
         else:
             # Config is existing, create hash with None parameters
@@ -91,11 +91,11 @@ class db:
         start_time = time.time()
         N_query = []
         #vector_filters = [NearestFilter(5)]
-        for [q, name] in query:
+        for [q, name, distance] in query:
             #print self.engine.candidate_count(q)
             N = self.engine.neighbours(q)
             for item in N:
-                N_query.append([name, item[1], 1 - item[2]])#the list has the format: [(query_idx, query_func_name), (result_idx, result_func_name), similarity(which is 1-distance)]
+                N_query.append([(name, distance), item[1], 1 - item[2]])#the list has the format: [(query_idx, query_func_name), (result_idx, result_func_name), similarity(which is 1-distance)]
             #
             # if idx%10000 == 9999:
             #     print('has done: ' + str(idx))
@@ -159,14 +159,14 @@ class db:
                 for j in range(i, len(sim_matrix)):
                     if sim_matrix[i][j] > 0.99999999:
                         quickUnion((i,j), eleNodeMap)
-            result = [i.num for i in eleNodeMap.values()]
+            result = [i.parent.num for i in eleNodeMap.values()]
             #print result
             groups=dict()
             for i in range(len(result)):
-                if i == result[i]:
-                    groups[i] = [vectors[i], bucket_content[i][1]]
-                else:
-                    groups[result[i]].append(bucket_content[i][1])
+                if result[i] not in groups:
+                    groups[result[i]] = [vectors[i]]
+                groups[result[i]].append(bucket_content[i][1])
+                #groups[result[i]].extend(bucket_content[i][1])
             self.engine.storage.redis_object.delete(redis_key)
             for element in groups:
                 #print groups[element][0]

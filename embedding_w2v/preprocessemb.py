@@ -33,36 +33,37 @@ if __name__ == '__main__':
     # args = parse_command()
     # get as an argument
     try:
-        ida_path = sys.argv[1]  # args.path
-
-        pemb = loadFiles(ida_path, ".emb")
-        if len(pemb) > 0:
-            print(ida_path + '/' + pemb[0])
-            os._exit(0)
+        #ida_path = sys.argv[1]  # args.path
+        #ida_path = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.1.0}{zlib-1.2.7.1}"
+        ida_path = '/home/yijiufly/Downloads/codesearch/data/openssl/openssl-OpenSSL_1_0_2q'
+        # pemb = loadFiles(ida_path, ".emb")
+        # if len(pemb) > 0:
+        #     print(ida_path + '/' + pemb[0])
+        #     os._exit(0)
         ida = loadFiles(ida_path, ".ida")
         # intialtize embedding
         emb = Embedding()
-        OUTPATH = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing/"
+        #OUTPATH = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing/"
         for i, value in enumerate(ida):
             idapath = ida_path + '/' + value
             # generage embedding for all .emb files
             print(idapath)
             funcname, embedding = Embedding.embed_a_binary(
                 emb, idapath)
-            embfile = idapath + ".emb"
-            #p.dump(embedding, open(embfile, 'wb'))
-            p.dump(funcname, open(idapath + ".nam", "wb"))
+            embfile = idapath + "_filted1.emb"
+            p.dump(embedding, open(embfile, 'wb'), protocol=2)
+            p.dump(funcname, open(idapath + "_filted1.nam", "wb"), protocol=2)
             #p.dump(fullfuncname, open(idapath + ".fullnam", "wb"))
-            name = embfile.split('/')[-1]
-            label = embfile.split('/')[-2]
-            #label = label[8:] + '_' + name
-            for i in range(len(embedding)):
-                #OUTFILE = OUTPATH + label[8:] + "_"+ name[:-8] + "{" + nams[i] + "}.emb"
-                OUTFILE = OUTPATH + label + "{" + funcname[i] + "}.emb"
-                #print OUTFILE
-                file = open(OUTFILE,'wb')
-                p.dump(embedding[i], file, protocol=2)
-                file.close()
+            # name = embfile.split('/')[-1]
+            # label = embfile.split('/')[-2]
+            # #label = label[8:] + '_' + name
+            # for i in range(len(embedding)):
+            #     #OUTFILE = OUTPATH + label[8:] + "_"+ name[:-8] + "{" + nams[i] + "}.emb"
+            #     OUTFILE = OUTPATH + label + "{" + funcname[i] + "}.emb"
+            #     #print OUTFILE
+            #     file = open(OUTFILE,'wb')
+            #     p.dump(embedding[i], file, protocol=2)
+            #     file.close()
 
         # check wheter ida processing done or not
         # if embfile is None:

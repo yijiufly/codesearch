@@ -128,8 +128,8 @@ def queryForOneBinary3Gram(qdata, outpath):
     p.dump(testkNN, open(outpath, "w"))
 
 def queryForOneBinary2Gram(qdata, outpath):
-    redis_object3 = Redis(host='localhost', port=6379, db=4)
-    hashMap3 = getHashMap("test3-2gram", redis_object3, dim=128)
+    redis_object3 = Redis(host='localhost', port=6379, db=2)
+    hashMap3 = getHashMap("filted1-2gram", redis_object3, dim=128)
     print("\nStart query for test data")
     testkNN = doSearch(hashMap3, qdata)
     p.dump(testkNN, open(outpath, "w"))
@@ -251,20 +251,21 @@ def build3gram(folder):
 
     print('load ' + lib.libraryName)
 
-def build3gram2(folder):
+def build3gram2(folder, lib):
     #dotfile = loadFiles(os.path.join(path_lib, folder), ext='.dot')[0]
-    dotfile = 'libcrypto.so_bn.dot'
+    dotfile = lib+'.so_bn.dot'
     dot_path = os.path.join(path_lib, folder, dotfile)
     libraryName = folder.split('-')[1] + '_' + dotfile.rsplit('.',1)[0]
-    emb_path = os.path.join(path_lib, folder, 'libcrypto.so.ida.emb')
-    nam_path = os.path.join(path_lib, folder, 'libcrypto.so.ida.nam')
-    lib = Library(libraryName, dot_path, emb_path)
-    lib.buildNGram(nam_path)
-    print(len(lib.threeGramList))
-    for [threegram, name] in lib.threeGramList:
-        addToHashMap(hashMap3, [threegram], [[path_lib.split('/')[-1], folder, name]])
+    emb_path = os.path.join(path_lib, folder, lib+'.so.ida.emb')
+    nam_path = os.path.join(path_lib, folder, lib+'.so.ida_filted1.nam')
+    nam_path_full = os.path.join(path_lib, folder, lib+'.so.ida.nam')
+    libitem = Library(libraryName, dot_path, emb_path, nam_path)
+    libitem.buildNGram(nam_path_full)
+    print(len(libitem.twoGramList))
+    for [threegram, name, distance] in libitem.twoGramList:
+        addToHashMap(hashMap3, [threegram], [[lib, folder, name, distance]])
 
-    print('load ' + lib.libraryName)
+    print('load ' + libitem.libraryName)
 '''
     # load openssl edges to LSH database
     path_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl'
@@ -398,9 +399,9 @@ if __name__ == '__main__':
     #build1gramDB(configname[0])
     #hashMap1 = build2gramDB(configname[1])
     #hashMap1.grouping()
-    redis_object3 = Redis(host='localhost', port=6379, db=3)
+    redis_object3 = Redis(host='localhost', port=6379, db=2)
     global hashMap3
-    hashMap3 = getHashMap("test3-3gram", redis_object3, dim=192)
+    hashMap3 = getHashMap("filted1-2gram", redis_object3, dim=128)
     #hashMap3.ungrouping()
     #hashMap3.buildTree()
     #pdb.set_trace()
@@ -415,7 +416,8 @@ if __name__ == '__main__':
     #        '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_openssl/')
     path_lib = '/home/yijiufly/Downloads/codesearch/data/openssl'
     for folder in os.listdir(path_lib):
-        build3gram2(folder)
+       build3gram2(folder,'libcrypto')
+       build3gram2(folder,'libssl')
     hashMap3.grouping()
     #parallelQuery()
     #test_some_binary_ngram(0,90)

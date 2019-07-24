@@ -135,8 +135,8 @@ class Embedding:
 				acfg = next(it)
 			except StopIteration:
 				break
-			#if len(acfg.fv_list) < 5:
-			#	continue
+			if len(acfg.fv_list) < 2:
+				continue
 			fvec_list = []
 			func_name = acfg.funcname
 			# test print function name

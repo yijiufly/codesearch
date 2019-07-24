@@ -20,7 +20,7 @@ function generate_emb()
 }
 
 
-dir=data/zlib/zlib-O2
+dir=/home/yijiufly/Downloads/codesearch/data/openssl
 home=$PWD
 cd ..
 echo "Generating idafiles in " $dir
@@ -31,7 +31,7 @@ cd ..
 max=${#array[@]}
 echo "containing " $max "files"
 
-rsnum=4
+rsnum=2
 times=$(expr $max / $rsnum)
 PID=()
 for((i=1; i<=max; )); do

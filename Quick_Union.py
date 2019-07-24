@@ -1,3 +1,4 @@
+import pdb
 class UFTreeNode(object):
     def __init__(self, num):
         # the group number
@@ -7,7 +8,7 @@ class UFTreeNode(object):
         self.children = []
 
         # its parent
-        self.parent = None
+        self.parent = self
 
         # the number of nodes that rooted by this node
         self.weight = 1
@@ -45,16 +46,15 @@ def backtracking(node):
     """
     root = node
 
-    while root.parent:
+    while root.parent != root:
         cur = root
         root = root.parent
 
-        # the grandfather node of cur exists
-        if cur.parent.parent:
-
-            # make the father of cur is its grandfather
-            grandfather = cur.parent.parent
-            grandfather.children.append(cur)
+        # make the father of cur is its grandfather
+        grandfather = cur.parent.parent
+        grandfather.children.append(cur)
+        grandfather.weight += cur.weight
+        cur.parent = grandfather
 
     return root
 
@@ -67,7 +67,7 @@ def quickUnion(elePair, eleNodeMap):
     :return:
     """
     nodePair = locPair(elePair, eleNodeMap)
-
+    #pdb.set_trace()
     root_1, root_2 = backtracking(nodePair[0]), backtracking(nodePair[1])
 
     # if the two elements of the pair are not belongs to the same root (group)
@@ -80,11 +80,9 @@ def quickUnion(elePair, eleNodeMap):
 
             # make the root2 as a subtree of root1
             root_1.children.append(root_2)
-
-            # update the group number of root2
-            root_2.num = root_1.num
+            root_2.parent = root_1
 
         else:
             root_2.weight += root_1.weight
             root_2.children.append(root_1)
-            root_1.num = root_2.num
+            root_1.parent = root_2

@@ -4,7 +4,7 @@ import time
 import binaryninja as binja
 import pickle
 from gensim.models.keyedvectors import KeyedVectors
-from obj import Obj
+from obj.base import Object as Obj
 import os
 # import sys
 # sys.path.insert(0,'/home/yijiufly/Downloads/binaryninja/python')
@@ -277,13 +277,14 @@ def get_instructions(block, symbol_map, string_map, dict_gen=1):
         return A
 
 if __name__ == '__main__':
-    for dir in os.listdir('/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'):
-        for ida_path in glob.iglob(r'/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2/'+dir+'/*.so'):
-            if os.path.exists(ida_path + '.ida'):
-                continue
-            #print(ida_path)
-            start = time.time()
-            acfgs = disassemble(ida_path)
-            elapse = time.time() - start
-            print(ida_path, elapse)
-            pickle.dump(acfgs, open(ida_path + '.ida', 'wb'),protocol=2)
+    for dir in os.listdir('/home/yijiufly/Downloads/codesearch/data/openssl'):
+        #for ida_path in glob.iglob(r'/home/yijiufly/Downloads/codesearch/data/openssl/'+dir+'/*.so'):
+        ida_path = '/home/yijiufly/Downloads/codesearch/data/openssl/'+dir+'/libssl.so'
+        if os.path.exists(ida_path + '.ida'):
+            continue
+        #print(ida_path)
+        start = time.time()
+        acfgs = disassemble(ida_path)
+        elapse = time.time() - start
+        print(ida_path, elapse)
+        pickle.dump(acfgs, open(ida_path + '.ida', 'wb'),protocol=2)

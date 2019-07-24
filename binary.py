@@ -56,11 +56,17 @@ class Binary:
     def getGraphFromPath(self):
         edgeList = self.graph.get_edge_list()
         linklistgraph = dict()
-        #smallnodes = dict()
+        smallnodes = dict()
         #self.callgraphEdges = []
         for edge in edgeList:
-            src = edge.get_source()
-            des = edge.get_destination()
+            src = edge.get_source().strip('\"')
+            des = edge.get_destination().strip('\"')
+            # if self.funcNameFilted[src] == -1:
+            #     if src in smallnodes:
+            #         smallnodes[src].append((des, 1))
+            #     else:
+            #         smallnodes[src] = [(des, 1)]
+            # else:
             if src in linklistgraph:
                 linklistgraph[src].append((des, 1))
             else:
@@ -70,19 +76,66 @@ class Binary:
             # else:
             #    linklistgraph[des] = [(src, 1)]
         print('edges loaded')
-        # keylist = linklistgraph.keys()
-        # findsmallnodes = -1
-        # while findsmallnodes != 0:
-        #     findsmallnodes = 0
-        #     for src in keylist:
-        #         for (des, distance) in linklistgraph[src]:
-        #             if self.funcNameFilted[self.ind2FuncName[des]] == -1:
-        #                 findsmallnodes += 1
-        #                 linklistgraph[src].remove((des, distance))
-        #                 if des in smallnodes:
-        #                     for (des2, distance2) in smallnodes[des]:
-        #                         if (des2, distance2 + distance) not in linklistgraph[src]:
-        #                             linklistgraph[src].append((des2, distance2 + distance))
+        keylist = linklistgraph.keys()
+        findsmallnodes = -1
+        while findsmallnodes != 0:
+            findsmallnodes = 0
+            for src in keylist:
+                for (des, distance) in linklistgraph[src]:
+                    if self.funcNameFilted[des] == -1:
+                        #findsmallnodes += 1
+                        if des in linklistgraph:
+                            continue
+                        else:
+                            linklistgraph[src].remove((des, distance))
+                        # linklistgraph[src].remove((des, distance))
+                        # if des in smallnodes:
+                        #     for (des2, distance2) in smallnodes[des]:
+                        #         if (des2, distance2 + distance) not in linklistgraph[src]:
+                        #             linklistgraph[src].append((des2, distance2 + distance))
+                        # else:
+                        #     print des
+
+        self.callgraphEdges = linklistgraph
+
+    def getGraphFromPathfilted(self):
+        edgeList = self.graph.get_edge_list()
+        linklistgraph = dict()
+        smallnodes = dict()
+        #self.callgraphEdges = []
+        for edge in edgeList:
+            src = edge.get_source().strip('\"')
+            des = edge.get_destination().strip('\"')
+            if self.funcNameFilted[src] == -1:
+                if src in smallnodes:
+                    smallnodes[src].append((des, 1))
+                else:
+                    smallnodes[src] = [(des, 1)]
+            else:
+                if src in linklistgraph:
+                    linklistgraph[src].append((des, 1))
+                else:
+                    linklistgraph[src] = [(des, 1)]
+            # if des in linklistgraph:
+            #    linklistgraph[des].append((src, 1))
+            # else:
+            #    linklistgraph[des] = [(src, 1)]
+        print('edges loaded')
+        keylist = linklistgraph.keys()
+        findsmallnodes = -1
+        while findsmallnodes != 0:
+            findsmallnodes = 0
+            for src in keylist:
+                for (des, distance) in linklistgraph[src]:
+                    if self.funcNameFilted[des] == -1:
+                        findsmallnodes += 1
+                        linklistgraph[src].remove((des, distance))
+                        if des in smallnodes:
+                            for (des2, distance2) in smallnodes[des]:
+                                if (des2, distance2 + distance) not in linklistgraph[src]:
+                                    linklistgraph[src].append((des2, distance2 + distance))
+                        # else:
+                        #     print des
 
         self.callgraphEdges = linklistgraph
 
@@ -132,43 +185,44 @@ class Binary:
                     srcemb = self.ind2emb[srcind]
                     desind = self.funcName2Ind[des]
                     desemb = self.ind2emb[desind]
-                    twoGramList.append([np.concatenate((srcemb, desemb)),(src, des)])
+                    twoGramList.append([np.concatenate((srcemb, desemb)),(src, des), distance])
                 except:
                     #print(traceback.format_exc())
                     pass
         self.twoGramList = twoGramList
 
-        threeGramList = []
-        for src in keylist:
-            for (des, distance) in linklistgraph[src]:
-                if des in keylist:
-                    for (des2, distance2) in linklistgraph[des]:
-                        try:
-                            src = src.strip('\"')
-                            des = des.strip('\"')
-                            des2 = des2.strip('\"')
-                            srcind = self.funcName2Ind[src]
-                            srcemb = self.ind2emb[srcind]
-                            desind = self.funcName2Ind[des]
-                            desemb = self.ind2emb[desind]
-                            desind2 = self.funcName2Ind[des2]
-                            desemb2 = self.ind2emb[desind2]
-                            threeGramList.append([np.concatenate((srcemb, desemb, desemb2)), (src, des, des2)])
-                        except:
-                            #print(traceback.format_exc())
-                            pass
-        self.threeGramList = threeGramList
+        # threeGramList = []
+        # for src in keylist:
+        #     for (des, distance) in linklistgraph[src]:
+        #         if des in keylist:
+        #             for (des2, distance2) in linklistgraph[des]:
+        #                 try:
+        #                     src = src.strip('\"')
+        #                     des = des.strip('\"')
+        #                     des2 = des2.strip('\"')
+        #                     srcind = self.funcName2Ind[src]
+        #                     srcemb = self.ind2emb[srcind]
+        #                     desind = self.funcName2Ind[des]
+        #                     desemb = self.ind2emb[desind]
+        #                     desind2 = self.funcName2Ind[des2]
+        #                     desemb2 = self.ind2emb[desind2]
+        #                     threeGramList.append([np.concatenate((srcemb, desemb, desemb2)), (src, des, des2)])
+        #                 except:
+        #                     #print(traceback.format_exc())
+        #                     pass
+        # self.threeGramList = threeGramList
         print('n-gram loaded')
         #pdb.set_trace()
 
 
 class TestBinary(Binary):
-    def __init__(self, binaryName, dotPath, embFile):
+    def __init__(self, binaryName, dotPath, embFile, namFile):
         print 'init testing binary'
-        #self.binaryName = binaryName
-        #self.loadCallGraph(dotPath)
-        #self.getGraphFromPath()
-        #self.embFile = embFile
+        # self.binaryName = binaryName
+        # self.loadCallGraph(dotPath)
+        # self.generatefuncNameFilted(namFile)
+        # self.getGraphFromPathfilted()
+        # self.embFile = embFile
 
     def getRank1Neighbors(self, selectedNeighbors, funcNameList):
         print 'analyse label count'
@@ -253,23 +307,35 @@ class TestBinary(Binary):
         return library.libraryName, edgeCount, len(srcs)+len(dests)
 
 
-    def count(self, queryPath, threshold=0.999, verbose=True):
+    def count(self, queryPath, threshold=0.9999, verbose=True):
         #queryPath = 'data/versiondetect/test2/test_kNN.p'
         #query stores the query knn: each line is [query_func_name, func_name_list, similarity]
+        # query_func_name: ((src,des), distance)
+        # func_name_list: [[lib, folder, name, distance],[],...]
         query = p.load(open(queryPath, 'rb'))
         votes = dict()
         for i in query:
             if i[2] > threshold:
+                #if len(i[1]) < 5 and i[2]<0.99995:
+                #    continue
                 funcList = i[1]
                 #TODO: calculate IDF for each n-gram
                 # if len(funcList) > 107:
                 #     continue
                 labels = set()
                 for predicted_func in funcList:
-                     binaryName = predicted_func[0]
-                     version = predicted_func[1]
-                     predicted_label = binaryName + '_' + version
-                     labels.add(predicted_label)
+                    querydistance = i[0][1]
+                    resultdistance = predicted_func[3]
+                    if querydistance == resultdistance:
+                        binaryName = predicted_func[0]
+                        version = predicted_func[1]
+                        predicted_label = binaryName + '_' + version
+                        labels.add(predicted_label)
+
+                    #binaryName = predicted_func[0]
+                    #version = predicted_func[1]
+                    #predicted_label = binaryName + '_' + version
+                    #labels.add(predicted_label)
 
                 #IDF = np.log(116.0/len(labels))
                 for predicted_label in labels:
@@ -297,7 +363,7 @@ class TestBinary(Binary):
                         votes[predicted_label] = 1
 
         sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
-        print(sorted_count)
+        #print(sorted_count)
         return sorted_count
 
 
