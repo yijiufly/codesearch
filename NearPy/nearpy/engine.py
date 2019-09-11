@@ -32,7 +32,7 @@ from nearpy.distances import EuclideanDistance
 from nearpy.distances import CosineDistance
 from nearpy.storage import MemoryStorage, MongoStorage
 from nearpy.utils.utils import unitvec
-
+import pdb
 
 class Engine(object):
     """
@@ -153,31 +153,36 @@ class Engine(object):
         finally the (optional) filter function to construct the returned list
         of either (vector, data, distance) tuples or (vector, data) tuples.
         """
+        if fetch_vector_filters:
+            vector_filters = fetch_vector_filters
+        else:
+            vector_filters = self.vector_filters
 
+        if not distance:
+            distance = self.distance
         # Collect candidates from all buckets from all hashes
-        candidates = self._get_candidates(v)
+        candidates = self._get_candidates(v, vector_filters, distance)
         # print 'Candidate count is %d' % len(candidates)
 
         # Apply fetch vector filters if specified and return filtered list
-        if fetch_vector_filters:
-            candidates = self._apply_filter(fetch_vector_filters,
-                                            candidates)
+
+        #candidates = self._apply_filter(vector_filters,
+        #                                        candidates)
 
         # Apply distance implementation if specified
-        if not distance:
-            distance = self.distance
-        candidates = self._append_distances(v, distance, candidates)
+
+        # candidates = self._append_distances(v, distance, candidates)
 
         # Apply vector filters if specified and return filtered list
-        if not vector_filters:
-            vector_filters = self.vector_filters
-        candidates = self._apply_filter(vector_filters, candidates)
+        # if not vector_filters:
+        #     vector_filters = self.vector_filters
+        # candidates = self._apply_filter(vector_filters, candidates)
 
         # If there is no vector filter, just return list of candidates
         return candidates
 
 
-    def _get_candidates(self, v):
+    def _get_candidates(self, v, fetch_vector_filters=None, distance=None):
         """ Collect candidates from all buckets from all hashes """
         candidates = []
         for lshash in self.lshashes:
@@ -186,8 +191,15 @@ class Engine(object):
                     lshash.hash_name,
                     bucket_key,
                 )
+                if distance:
+                    bucket_content = self._append_distances(v, distance, bucket_content)
                 #print 'Bucket %s size %d' % (bucket_key, len(bucket_content))
                 candidates.extend(bucket_content)
+            #pdb.set_trace()
+            if fetch_vector_filters:
+                candidates = self._apply_filter(fetch_vector_filters,
+                                            candidates)
+
         return candidates
 
 

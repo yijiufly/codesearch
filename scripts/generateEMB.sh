@@ -20,6 +20,7 @@ function generate_emb()
 }
 
 
+#dir=/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx
 dir=/home/yijiufly/Downloads/codesearch/data/openssl
 home=$PWD
 cd ..

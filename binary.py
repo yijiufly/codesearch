@@ -43,11 +43,12 @@ class Binary:
         self.funcName2Ind = func2ind
         self.ind2FuncName = ind2func
 
-    def generatefuncNameFilted(self, path):
+    def generatefuncNameFilted(self, path, filter_size=0):
         func2ind = dict()
         funcNameList = p.load(open(path, 'r'))
+        funcName2size = {i[0]:i[1] for i in funcNameList}
         for func in self.funcName2Ind.keys():
-            if func in funcNameList:
+            if func in funcName2size and funcName2size[func] > filter_size:
                 func2ind[func] = self.funcName2Ind[func]
             else:
                 func2ind[func] = -1
@@ -161,11 +162,13 @@ class Binary:
     def loadOneBinary(self, funcnamepath, embFile):
         names = p.load(open(funcnamepath, 'r'))
         data = p.load(open(embFile, 'r'))
-        self.ind2emb=dict()
+        #self.ind2emb=dict()
+        self.funcName2emb=dict()
         for i in range(len(names)):
-            if names[i] in self.funcName2Ind:
-                ind1 = self.funcName2Ind[names[i]]
-                self.ind2emb[ind1]=data[i]
+            # if names[i] in self.funcName2Ind:
+            #     ind1 = self.funcName2Ind[names[i]]
+            #     self.ind2emb[ind1]=data[i]
+            self.funcName2emb[names[i]]=data[i]
             # else:
             #     print names[i]
 
@@ -181,48 +184,43 @@ class Binary:
                     #pdb.set_trace()
                     src = src.strip('\"')
                     des = des.strip('\"')
-                    srcind = self.funcName2Ind[src]
-                    srcemb = self.ind2emb[srcind]
-                    desind = self.funcName2Ind[des]
-                    desemb = self.ind2emb[desind]
+                    srcemb = self.funcName2emb[src]
+                    desemb = self.funcName2emb[des]
                     twoGramList.append([np.concatenate((srcemb, desemb)),(src, des), distance])
                 except:
-                    #print(traceback.format_exc())
+                    print(traceback.format_exc())
                     pass
         self.twoGramList = twoGramList
 
-        # threeGramList = []
-        # for src in keylist:
-        #     for (des, distance) in linklistgraph[src]:
-        #         if des in keylist:
-        #             for (des2, distance2) in linklistgraph[des]:
-        #                 try:
-        #                     src = src.strip('\"')
-        #                     des = des.strip('\"')
-        #                     des2 = des2.strip('\"')
-        #                     srcind = self.funcName2Ind[src]
-        #                     srcemb = self.ind2emb[srcind]
-        #                     desind = self.funcName2Ind[des]
-        #                     desemb = self.ind2emb[desind]
-        #                     desind2 = self.funcName2Ind[des2]
-        #                     desemb2 = self.ind2emb[desind2]
-        #                     threeGramList.append([np.concatenate((srcemb, desemb, desemb2)), (src, des, des2)])
-        #                 except:
-        #                     #print(traceback.format_exc())
-        #                     pass
-        # self.threeGramList = threeGramList
+        threeGramList = []
+        for src in keylist:
+            for (des, distance) in linklistgraph[src]:
+                if des in keylist:
+                    for (des2, distance2) in linklistgraph[des]:
+                        try:
+                            src = src.strip('\"')
+                            des = des.strip('\"')
+                            des2 = des2.strip('\"')
+                            srcemb = self.funcName2emb[src]
+                            desemb = self.funcName2emb[des]
+                            desemb2 = self.funcName2emb[des2]
+                            threeGramList.append([np.concatenate((srcemb, desemb, desemb2)), (src, des, des2), distance + distance2])
+                        except:
+                            print(traceback.format_exc())
+                            pass
+        self.threeGramList = threeGramList
         print('n-gram loaded')
         #pdb.set_trace()
 
 
 class TestBinary(Binary):
-    def __init__(self, binaryName, dotPath, embFile, namFile):
+    def __init__(self, binaryName, dotPath, embFile, namFile, filter_size=0):
         print 'init testing binary'
-        # self.binaryName = binaryName
-        # self.loadCallGraph(dotPath)
-        # self.generatefuncNameFilted(namFile)
-        # self.getGraphFromPathfilted()
-        # self.embFile = embFile
+        self.binaryName = binaryName
+        self.loadCallGraph(dotPath)
+        self.generatefuncNameFilted(namFile, filter_size)
+        self.getGraphFromPathfilted()
+        self.embFile = embFile
 
     def getRank1Neighbors(self, selectedNeighbors, funcNameList):
         print 'analyse label count'

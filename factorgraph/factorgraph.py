@@ -48,6 +48,7 @@ import pdb
 # 3rd party
 import numpy as np
 import pickle as p
+from collections import defaultdict
 
 # Constants
 # -----------------------------------------------------------------------------
@@ -130,7 +131,7 @@ class Graph(object):
 
     # TODO(mbforbes): Learn about *args or **args or whatever and see whether I
     #                 can use here to clean this up.
-    def rv(self, name, n_opts, labels=[], meta={}, debug=DEBUG_DEFAULT):
+    def rv(self, name, n_opts, prior = None, labels=[], meta={}, debug=DEBUG_DEFAULT):
         '''
         Creates an RV, adds it to this graph, and returns it. Convenience
         function.
@@ -144,7 +145,7 @@ class Graph(object):
         Returns:
             RV
         '''
-        rv = RV(name, n_opts, labels, meta, debug)
+        rv = RV(name, n_opts, prior, labels, meta, debug)
         self.add_rv(rv)
         return rv
 
@@ -476,7 +477,9 @@ class Graph(object):
             name = str(rv)
             marg, _ = rv.get_belief()
             if normalize:
-                marg /= sum(marg)
+                if sum(marg)==0:
+                    pbd.set_trace()
+                marg = divide_safezero(marg, sum(marg))
 
             tuples += [(rv, marg)]
         return tuples
@@ -639,15 +642,18 @@ class Graph(object):
             for label in marg:
                 if label > largest:
                     largest = label
-            names = global_dict[rv_label]
-            names.append('None')
+            if type(global_dict)==type([]):
+                names = global_dict
+            else:
+                names = global_dict[rv_label]
+                names.append('None')
             for i, label in enumerate(marg):
                 if np.isclose(label, largest):
                     if rv_label in prediction:
                         prediction[rv_label].append(names[i])
                     else:
                         prediction[rv_label]=[names[i]]
-        finalprediction = dict()
+
         keylist = prediction.keys()
         for key in keylist:
             funclist = prediction[key]
@@ -661,38 +667,91 @@ class Graph(object):
                     # label=set()
                     # break
                 label.add(predicted_label)
-            # if 'libcryptoopenssl-OpenSSL_0_9_8m' not in label and 'libsslopenssl-OpenSSL_0_9_8m' not in label:
-            #     print key
-            #     print prediction[key]
-            #     print global_dict[key]
             votes += Counter(label)
-            finalprediction[key] = label
 
         sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
-        #p.dump(finalprediction, open('iteration/max'+str(LBP_MAX_ITERS),'w'))
-        #print(sorted_count)
-        '''
+        print sorted_count
+        return sorted_count
+
+    def accuracy_of_functions(self, rvs=None, normalize=False):
+        # Extract
+        global_dict = self.global_dict
+        tuples = self.rv_marginals(rvs, normalize)
+        prediction = dict()
+        count = 0
+        count2 = 0
+        prior = defaultdict(list)
+        # Display
+        for rv, marg in tuples:
+            rv_label = str(rv)
+            largest = -1
+            for label in marg:
+                if label > largest:
+                    largest = label
+            names = global_dict[rv_label]
+
+            # if np.isclose(largest, 1.0/len(names)):
+            #     continue
+            for i, label in enumerate(marg):
+                prior[rv_label].append((names[i], label))
+                if np.isclose(label, largest):
+                    #pdb.set_trace()
+                    if rv_label in prediction:
+                        prediction[rv_label].append(names[i])
+                    else:
+                        prediction[rv_label]=[names[i]]
+
+        keylist = prior.keys()
+        # for key in keylist:
+        #     print key
+        #     print prior[key]
+        #     print
         keylist = prediction.keys()
         for key in keylist:
-            print key
             funclist = prediction[key]
-            idxs=[]
-            for id1 in range(len(funclist)):
-                print funclist[id1]
-            print
-        '''
-        # finalprediction = dict()
-        # keylist = global_dict.keys()
-        # for key in keylist:
-        #     label = set()
-        #     funclist = global_dict[key]
-        #     for func in funclist:
-        #         predicted_label = func.split('{')[0]
-        #         label.add(predicted_label)
-        #     finalprediction[key] = label
-        #
-        # p.dump(finalprediction, open('iteration/max'+str(0),'w'))
-        return sorted_count
+            label=set()
+            #print key
+            for (func, lib) in funclist:
+                if len(func.split('{')) > 1:
+                    predicted_label = func.split('{')[1].split('}')[0]
+                else:
+                    predicted_label = func
+                label.add(predicted_label)
+            if 'None' in label and len(label)==1:
+                count2 += 1
+            if key in label:
+                count += 1
+
+        #         if len(label) > 1:
+        #             count2+=1
+            # else:
+            #     print key, prior[key], label
+        #print count, count2,len(keylist)
+        print "correct prediction, None prediction, total prediction, precision:"
+        print count, count2, len(keylist), count*1.0/(len(keylist)-count2)
+        return count*1.0/len(keylist)
+
+    def get_func_prediction(self, rvs=None, normalize=False):
+        # Extract
+        global_dict = self.global_dict
+        tuples = self.rv_marginals(rvs, normalize)
+        prediction = defaultdict(set)
+
+        # Display
+        for rv, marg in tuples:
+            rv_label = str(rv)
+            #print rv_label
+            largest = 0
+            for label in marg:
+                if label > largest:
+                    largest = label
+            names = global_dict[rv_label]
+            for i, label in enumerate(marg):
+                #print i, names[i], label
+                if np.isclose(label, largest):
+                    prediction[rv_label].add(names[i])
+            
+        return prediction
 
     def debug_stats(self):
         logger.debug('Graph stats:')
@@ -705,7 +764,7 @@ class RV(object):
     NOTE: All RVs must have unique names.
     '''
 
-    def __init__(self, name, n_opts, labels=[], meta={}, debug=DEBUG_DEFAULT):
+    def __init__(self, name, n_opts, prior=None, labels=[], meta={}, debug=DEBUG_DEFAULT):
         '''
         Args:
             name (str)                must be globally unique w.r.t. other RVs
@@ -725,6 +784,7 @@ class RV(object):
         # vars set at construction time
         self.name = name
         self.n_opts = n_opts
+        self.prior = prior
         self.labels = labels
         self.debug = debug
         self.meta = meta  # metadata: custom data added / manipulated by user
@@ -833,8 +893,10 @@ class RV(object):
         )
         '''
         incoming = []
-        total = np.ones(self.n_opts)
-        total[-1] = 1
+        if self.prior is None:
+            total = np.ones(self.n_opts)
+        else:
+            total = self.prior
 
         for i, f in enumerate(self._factors):
             m = f.get_outgoing_for(self)
@@ -842,6 +904,7 @@ class RV(object):
                 assert m.shape == (self.n_opts,)
             incoming += [m]
             total *= m
+            total = divide_safezero(total, sum(total))
         return (total, incoming)
 
     def n_edges(self):
@@ -1098,6 +1161,8 @@ class Factor(object):
                 if self.debug:
                     assert self._outgoing[i].shape == (rv.n_opts, )
                 if normalize:
+                    if sum(o) == 0:
+                        pdb.set_trace()
                     o = divide_safezero(o, sum(o))
                 self._outgoing[i] = o
                 convg = convg and \
