@@ -1,3 +1,7 @@
 *.pyc
 data/
 embedding_w2v/
+tmp/
+Gemini/manual/
+Gemini/testingdataset/
+Gemini/trainingdataset/
