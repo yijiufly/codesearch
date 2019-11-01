@@ -111,10 +111,26 @@ def queryForOneBinary3Gram(qdata, outpath):
 
 def queryForOneBinary2Gram(qdata, outpath):
     redis_object3 = Redis(host='localhost', port=6379, db=0)
-    hashMap3 = getHashMap(["filted1-2gram-binary","filted1-2gram-binary2","filted1-2gram-binary0"], redis_object3, dim=128)
+    hashMap3 = getHashMap(["filted1-2gram-binary0", "filted1-2gram-binary1", "filted1-2gram-binary2"], redis_object3, dim=128)
     #hashMap3 = getHashMap(["filted1-2gram-binary"], redis_object3, dim=128)
     print("\nStart query for test data")
     testkNN = doSearch(hashMap3, qdata)
+    p.dump(testkNN, open(outpath, "w"))
+    return testkNN
+
+def queryForOneBinary1Gram(testbin, outpath):
+    redis_object3 = Redis(host='localhost', port=6379, db=1)
+    #hashMap3 = getHashMap(["filted1-2gram-binary0", "filted1-2gram-binary1", "filted1-2gram-binary2"], redis_object3, dim=128)
+    hashMap3 = getHashMap(["filted1-1gram-binary0", "filted1-1gram-binary1", "filted1-1gram-binary2"], redis_object3, dim=64)
+    nodes = set()
+    for key in testbin.funcNameFilted.keys():
+        if testbin.funcNameFilted[key] != -1:
+            nodes.add(key)
+    query = []
+    for node in nodes:
+        emb = testbin.funcName2emb[node]
+        query.append([emb, node, 1])
+    testkNN = hashMap3.querying(query)
     p.dump(testkNN, open(outpath, "w"))
     return testkNN
 
@@ -137,10 +153,11 @@ def build3gram2(folder, lib):
     filter_size = 1
     dotfile = lib+'.so_bn.dot'
     dot_path = os.path.join(path_lib, folder, dotfile)
-    libraryName = folder.split('-')[1] + '_' + dotfile.rsplit('.',1)[0]
-    emb_path = os.path.join(path_lib, folder, lib+'.so.ida.emb')
-    nam_path = os.path.join(path_lib, folder, lib+'.so.ida_newmodel_withsize.nam')
-    nam_path_full = os.path.join(path_lib, folder, lib+'.so.ida.nam')
+    #libraryName = folder.split('-')[1] + '_' + dotfile.rsplit('.',1)[0]
+    libraryName = folder + '_' + dotfile.rsplit('.',1)[0]
+    emb_path = os.path.join(path_lib, folder, lib+'.so_newmodel.emb')
+    nam_path = os.path.join(path_lib, folder, lib+'.so_newmodel_withsize.nam')
+    nam_path_full = os.path.join(path_lib, folder, lib+'.so_newmodel.nam')
     libitem = Library(libraryName, dot_path, emb_path, nam_path,filter_size)
     libitem.buildNGram(nam_path_full)
     print(len(libitem.twoGramList))
@@ -149,67 +166,51 @@ def build3gram2(folder, lib):
 
     print('load ' + libitem.libraryName)
 
+def build1gram(folder, lib):
+    #dotfile = loadFiles(os.path.join(path_lib, folder), ext='.dot')[0]
+    filter_size = 1
+    dotfile = lib+'.so_bn.dot'
+    dot_path = os.path.join(path_lib, folder, dotfile)
+    #libraryName = folder.split('-')[1] + '_' + dotfile.rsplit('.',1)[0]
+    libraryName = folder + '_' + dotfile.rsplit('.',1)[0]
+    emb_path = os.path.join(path_lib, folder, lib+'.so_newmodel.emb')
+    nam_path = os.path.join(path_lib, folder, lib+'.so_newmodel_withsize.nam')
+    nam_path_full = os.path.join(path_lib, folder, lib+'.so_newmodel.nam')
+    libitem = Library(libraryName, dot_path, emb_path, nam_path,filter_size)
+    libitem.loadOneBinary(nam_path_full, libitem.embFile)
+    for func in libitem.funcNameFilted.keys():
+        if libitem.funcNameFilted[func] != -1:
+            addToHashMap(hashMap3, [libitem.funcName2emb[func]], [[lib, folder, func]])
+
+    print('load ' + libitem.libraryName)
+
 if __name__ == '__main__':
-    configname = ["test3-one", "test3-2gram", "test3-3gram"]
-    grouped_configname = ["1gram-grouped", "2gram-grouped", "3gram-grouped"]
-    #build1gramDB(configname[0])
-    #hashMap1 = build2gramDB(configname[1])
-    #hashMap1.grouping()
-    redis_object3 = Redis(host='localhost', port=6379, db=0)
-    global hashMap3
-    #hashMap3 = getHashMap(["filted1-2gram-discrete1"], redis_object3, dim=128)
-    hashMap3 = getHashMap(["filted1-2gram-binary0"], redis_object3, dim=128)
-    #hashMap3.ungrouping()
-    #hashMap3.buildTree()
-    #pdb.set_trace()
-    # global lib_data, namelist
-    # lib_data, namelist = loadDataFromFolder(
-    #    '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_zlibO2')
-    global path_lib
+    ####build 2-gram lsh
+    # redis_object3 = Redis(host='localhost', port=6379, db=0)
+    # global hashMap3
+    # hashMap3 = getHashMap(["filted1-2gram-binary0", "filted1-2gram-binary1", "filted1-2gram-binary2"], redis_object3, dim=128)
+    #
+    # global path_lib
     # path_lib = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'
     # for folder in os.listdir(path_lib):
-    #     build3gram(folder)
-    # lib_data, namelist = loadDataFromFolder(
-    #        '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_openssl/')
+    #     build3gram2(folder, 'libz')
+    # path_lib = '/home/yijiufly/Downloads/codesearch/data/openssl'
+    # for folder in os.listdir(path_lib):
+    #     build3gram2(folder,'libcrypto')
+    #     build3gram2(folder,'libssl')
+    # hashMap3.grouping()
+
+    ####build function lsh
+    redis_object3 = Redis(host='localhost', port=6379, db=1)
+    global hashMap3
+    hashMap3 = getHashMap(["filted1-1gram-binary0", "filted1-1gram-binary1", "filted1-1gram-binary2"], redis_object3, dim=64)
+
+    global path_lib
+    path_lib = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2'
+    for folder in os.listdir(path_lib):
+        build1gram(folder, 'libz')
     path_lib = '/home/yijiufly/Downloads/codesearch/data/openssl'
     for folder in os.listdir(path_lib):
-        build3gram2(folder,'libcrypto')
-        build3gram2(folder,'libssl')
+        build1gram(folder,'libcrypto')
+        build1gram(folder,'libssl')
     hashMap3.grouping()
-    #parallelQuery()
-    #test_some_binary_ngram(0,90)
-
-    # redis_object = Redis(host='localhost', port=6379, db=3)
-    # hashMap = getHashMap(configname[2], redis_object, dim = 192)
-    #cleanAllBuckets(hashMap)
-    # redis_object2 = Redis(host='localhost', port=6379, db=4)
-    # grouped_hashMap = getHashMap(grouped_configname[2], redis_object2, dim = 192)
-    #grouped_hashMap = addToHashMap(grouped_hashMap, [], [])
-    #hashMap2.grouping()
-    # hashMap = getHashMap()
-    # data, newNameList = loadData("data/versiondetect/test2/versiondetect_func_list.txt")
-    # print "Start add data to hash map"
-    # hashMap = addToHashMap(hashMap, data, newNameList)
-    # add_data, newNameList = loadQueryData("data/versiondetect/test1/versiondetect_addfunc_list.txt")
-    # hashMap = addToHashMap(hashMap, add_data, newNameList)
-    # hashMap = addToHashMap(hashMap, [])
-    # zlib_data, namelist = loadDataFromFolder(
-    #     'data/versiondetect/test2/funcemb_output_zlib_O2')
-    # hashMap = addToHashMap(hashMap, zlib_data, namelist)
-
-    #hashMap = addToHashMap(hashMap, [], [])
-
-    # qdata, newNameList = loadQueryData("data/versiondetect/test1/versiondetect_query_list.txt")
-    # funcnamepath = os.path.join('data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9', 'nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam')
-    #funcnamepath = 'data/versiondetect/test2/idafiles/0acc5283147612b2abd11d606d5585ac8370fc33567f7f77c0b312c207af3bf9/nginx-{openssl-0.9.8r}{zlib-1.2.9}.ida.nam'
-    # qdata, newNameList = loadOneQueryBinary(
-    #    funcnamepath, 'data/versiondetect/test2/funcemb_output_testing/')
-    # print qdata, newNameList
-    #print "Start query for test data"
-    #testkNN = doSearch(hashMap, qdata, newNameList)
-    # for knn in testkNN:
-    #    print knn
-    # hashMap = addToHashMap(hashMap, [])
-    # testkNN = p.load(open("data/versiondetect/kNN.p","r"))
-    # N = output_format("data/versiondetect/versiondetect_func_list.txt", testkNN)
-    #p.dump(testkNN, open("data/versiondetect/test2/test_kNN.p", "w"))

@@ -659,7 +659,7 @@ class Graph(object):
             funclist = prediction[key]
             label=set()
             #print key
-            for func in funclist:
+            for (lib,func) in funclist:
                 predicted_label = func.split('{')[0]
                 #print '\t', predicted_label
                 if predicted_label == 'None':
@@ -683,7 +683,9 @@ class Graph(object):
         prior = defaultdict(list)
         # Display
         for rv, marg in tuples:
-            rv_label = str(rv)
+            rv_label = str(rv).split(' ')[0]
+            if rv_label[:4] == 'str_':
+                continue
             largest = -1
             for label in marg:
                 if label > largest:
@@ -740,18 +742,37 @@ class Graph(object):
         # Display
         for rv, marg in tuples:
             rv_label = str(rv)
+            if rv_label[:4] == 'str_':
+                continue
             #print rv_label
             largest = 0
             for label in marg:
                 if label > largest:
                     largest = label
-            names = global_dict[rv_label]
+            names = global_dict[rv_label.split(' ')[0]]
             for i, label in enumerate(marg):
                 #print i, names[i], label
                 if np.isclose(label, largest):
-                    prediction[rv_label].add(names[i])
-            
+                    prediction[rv_label].add((names[i], label))
+
         return prediction
+
+    def print_graph(self, dotpath):
+        rvs = self.get_rvs()
+        graph_string = 'digraph Call_Graph {\n'
+
+        graph_string += ';\n'.join([str(rvs[rv]) for rv in rvs])
+
+        edge_string = ';\n'.join([repr(edge) for edge in self.get_factors()])
+
+        if edge_string:
+            graph_string += ';\n{};'.format(edge_string)
+
+        graph_string += '\n}'
+
+        f = open(dotpath, 'w')
+        f.write(graph_string)
+        f.close()
 
     def debug_stats(self):
         logger.debug('Graph stats:')
@@ -795,7 +816,18 @@ class RV(object):
         self._outgoing = None
 
     def __repr__(self):
-        return self.name
+        # type: (Node) -> str
+        node_name = self.name
+
+        if self.labels:
+            labelstr = ''
+            for label in self.labels:
+                labelstr += label + '\n'
+            node_name += ' [label="{}"]'.format(labelstr)
+
+        #node_name += ';'
+
+        return node_name
 
     def __hash__(self):
         return hash(self.name)
@@ -1019,8 +1051,9 @@ class Factor(object):
             self.set_potential(potential)
 
     def __repr__(self):
-        name = 'f' if len(self.name) == 0 else self.name
-        return name + '(' + ', '.join([str(rv) for rv in self._rvs]) + ')'
+        #name = 'f' if len(self.name) == 0 else self.name
+        #return name + '(' + ', '.join([str(rv) for rv in self._rvs]) + ')'
+        return '{} -> {} [label="{}"]'.format(str(self._rvs[0]).split(' ')[0], str(self._rvs[1]).split(' ')[0], self.name)
 
     def n_edges(self):
         '''

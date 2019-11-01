@@ -41,7 +41,7 @@ class db:
 
             if config is None:
                 # Config is not existing, create hash from scratch, with 20 projections
-                self.lshash.append(RandomBinaryProjections(configname, 50))
+                self.lshash.append(RandomBinaryProjections(configname, 20))
                 #self.lshash.append(RandomDiscretizedProjections(configname, 6, 40))
                 print('new configuration!')
             else:
@@ -102,9 +102,11 @@ class db:
         for [q, name, distance] in query:
             #print self.engine.candidate_count(q)
             N = self.engine.neighbours(q)
-
+            if len(N) == 0:
+                N_query.append([(name, distance), [], 1])
             for item in N:
                 N_query.append([(name, distance), item[1], 1 - item[2]])#the list has the format: [(query_idx, query_func_name), (result_idx, result_func_name), similarity(which is 1-distance)]
+
             #
             # if idx%10000 == 9999:
             #     print('has done: ' + str(idx))

@@ -69,4 +69,53 @@ def addattributeforBP():
     #print graph.to_string()
     print count1, count2, count3, count4
 
-addattributeforBP()
+def addattributeforfunctions():
+    path = '/home/yijiufly/Downloads/codesearch/BP.dot'
+    graph = pydot.graph_from_dot_file(path)
+    nodeList = graph.get_node_list()
+    dir_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl/'
+    folder = 'openssl-OpenSSL_1_0_1d/'
+    nam = 'libcrypto.so.ida_newmodel_withsize.nam'
+    sslnam = 'libssl.so.ida_newmodel_withsize.nam'
+    names = p.load(open(dir_openssl+folder+sslnam, 'r'))
+    names.extend(p.load(open(dir_openssl+folder+nam, 'r')))
+    name = [i[0] for i in names]
+    none_nodes = p.load(open('../wrong_predictions', 'r'))
+    wrong_nodes = p.load(open('../wrong_nodes', 'r'))
+    # correctname = []
+    # for key in prediction:
+    #     pred = [i[0][0] for i in prediction[key]]
+    #     if key in pred:
+    #         correctname.append(key)
+    for node in nodeList:
+        nodename = node.get_name().strip('\"')
+        if nodename in name:
+            node.obj_dict['attributes']['class']=0
+        else:
+            node.obj_dict['attributes']['class']=1
+        if nodename in none_nodes:
+            node.obj_dict['attributes']['prediction']=1
+        else:
+            node.obj_dict['attributes']['prediction']=0
+        if nodename in wrong_nodes:
+            node.obj_dict['attributes']['wrong_nodes']=1
+        else:
+            node.obj_dict['attributes']['wrong_nodes']=0
+    print graph.to_string()
+
+def removesomenode():
+    path = '/home/yijiufly/Downloads/codesearch/BP.dot'
+    graph = pydot.graph_from_dot_file(path)
+    nodeList = graph.get_node_list()
+    filtednames = p.load(open('../nodes_filted.p','r'))
+    graph_string = 'digraph Call_Graph {\n'
+    graph_string += ';\n'.join([rv for rv in filtednames])
+    edgeList = graph.get_edge_list()
+    edge_string = ''
+    for edges in edgeList:
+        if edges.get_source()=='main' or edges.get_destination()== 'main':
+            edge_string += '{} -> {} [label={}];\n'.format(edges.get_source(), edges.get_destination(), edges.obj_dict['attributes']['label'])
+    graph_string += ';\n' + edge_string
+    graph_string += '\n}'
+    print graph_string
+addattributeforfunctions()

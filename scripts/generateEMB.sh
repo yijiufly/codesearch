@@ -16,12 +16,12 @@ begin=$(date +%s)
 function generate_emb()
 {
 	echo "Generating file " $1/$2
-	python3 embedding_w2v/preprocessemb.py $1/$2
+	python3 Gemini/embedding/preprocessemb.py $1/$2
 }
 
-
+dir=/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2
 #dir=/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx
-dir=/home/yijiufly/Downloads/codesearch/data/openssl
+#dir=/home/yijiufly/Downloads/codesearch/data/openssl
 home=$PWD
 cd ..
 echo "Generating idafiles in " $dir

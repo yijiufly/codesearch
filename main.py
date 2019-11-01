@@ -6,7 +6,7 @@ import operator
 import pdb
 from binary import TestBinary
 from library import Library
-from lshknn import queryForOneBinary3Gram, queryForOneBinary2Gram
+from lshknn import queryForOneBinary3Gram, queryForOneBinary2Gram, queryForOneBinary1Gram
 import sys
 sys.path.append('./SPTAG/Release')
 #from searchSPTAG import queryForOneBinary3Gram
@@ -24,8 +24,7 @@ try:
 except ImportError:
     import Queue as queue
 import mongowrapper.MongoWrapper as mdb
-from embedding_w2v.embedding import Embedding
-emb = Embedding()
+from collections import Counter
 
 def loadFiles(PATH, ext=None):  # use .ida or .emb for ida file and embedding file
     filenames = []
@@ -66,6 +65,8 @@ def parallelQuery(folders):
 
 def test_some_binary_ngram(i, j, folders):
     dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
+    libraryName = 'library'
+    db = mdb('oss', libraryName + '_stringtable')
     #print "PID:", os.getpid()
     #print i,j
     for folder in folders[i:j]:
@@ -76,7 +77,7 @@ def test_some_binary_ngram(i, j, folders):
             dotfiles = loadFiles(os.path.join(dir, folder), ext='_bn.dot')
             #dotfiles.sort()
             namfiles = loadFiles(os.path.join(dir, folder), ext='.ida_newmodel_withsize.nam')
-            embfiles = loadFiles(os.path.join(dir, folder), ext='.emb')
+            embfiles = loadFiles(os.path.join(dir, folder), ext='.ida_newmodel.emb')
             embfiles.sort()
         except Exception:
             print traceback.format_exc()
@@ -89,15 +90,16 @@ def test_some_binary_ngram(i, j, folders):
             binaryName = dotfile.split('.')[0]
             dotPath = os.path.join(dir, folder, dotfile)
             namPath = os.path.join(dir, folder, namfile)
-            namPathFull = os.path.join(dir, folder, namfile[:-22]+'.nam')
+            namPathFull = os.path.join(dir, folder, namfile[:-13]+'.nam')
             embPath = os.path.join(dir, folder, embfile)
 
             #calculate 3gram
             # candidate_output3 = os.path.join(dir, folder, binaryName+'_test_kNN_0521_3gram.p')
             # count_output3 = os.path.join(dir, folder, binaryName+'_BP_undirected.txt')
             binary_dir = os.path.join(dir, folder)
-            candidate_output = os.path.join(dir, folder, 'test_kNN_0906_2gram.p')
-            #count_output = os.path.join(dir, folder, 'out_count0816_2gram.p')
+            candidate_output = os.path.join(dir, folder, 'test_kNN_1030_1gram.p')
+            string_table = p.load(open('string_dict.p','rb'))
+            count_output = os.path.join(dir, folder, 'out_count1030_1gram.p')
             #if os.path.isfile(count_output):
                 #result3gram = p.load(open(count_output3, 'rb'))
                 #continue
@@ -105,24 +107,313 @@ def test_some_binary_ngram(i, j, folders):
             #pdb.set_trace()
             #testbin.loadOneBinary(namPathFull, embPath)
             if os.path.isfile(candidate_output):
-                pass
+                #g = BP_with_penalty(candidate_output)
+                #count = runBPversions(candidate_output)
+                count = counting(candidate_output)
+                #g = BP_with_strings(candidate_output, string_table, db)
             else:
                 #continue
                 testbin = TestBinary(binaryName, dotPath, embPath, namPath, 1)
                 testbin.buildNGram(namPathFull)
                 #queryForOneBinary3Gram(testbin.threeGramList, candidate_output)
-                kNN = queryForOneBinary2Gram(testbin.twoGramList, candidate_output)
-
+                #kNN = queryForOneBinary2Gram(testbin.twoGramList, candidate_output)
+                kNN = queryForOneBinary1Gram(testbin, candidate_output)
+                #g = BP_with_penalty(kNN)
+                #count = runBPversions(kNN)
+                count = counting(kNN)
+                #g = BP_with_strings(kNN, string_table, db)
+            #accuracy_of_functions(g)
             #testbin.callBP(candidate_output3, candidate_output2, namPath, binary_dir)
             #result = runFactorGraph2gram(candidate_output, folder)
-            funcprediction = runBPfunctionname(candidate_output, folder)
+            #funcprediction = runBPfunctionname(kNN, folder)
             #result = runBPversions(graph, testbin)
             #result = testbin.count(candidate_output)
             #result = getcomponentsbyquickunionwithexcude(candidate_output, funcprediction)
             #result = getcomponentsbyquickunion(candidate_output)
-            #p.dump(result, open(count_output, 'w'))
+            p.dump(count, open(count_output, 'w'))
             #print folder, ', ', result
         print("--- %s seconds ---" % (time.time() - start_time))
+
+def counting(queryPath_1gram):
+    global THRES
+    threshold=THRES
+    if type(queryPath_1gram) == type(''):
+        query_1gram = p.load(open(queryPath_1gram, 'rb'))
+    else:
+        query_1gram = queryPath_1gram
+    hasDistance = False
+    if type(query_1gram[0][0][0]) == type((1,2)):
+        hasDistance = True
+
+    prediction = defaultdict(set)
+    for [(name, distance), predict, sim] in query_1gram:
+        if sim > threshold:
+            for [lib, version, func] in predict:
+                prediction[name].add(version)
+
+    votes = Counter()
+    for key in prediction:
+        votes += Counter(prediction[key])
+
+    sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
+    print sorted_count
+    return sorted_count
+
+def accuracy_of_functions(g, rvs=None, normalize=False):
+        # Extract
+        global_dict = g.global_dict
+        tuples = g.rv_marginals(rvs, normalize)
+        prediction = dict()
+        count = 0
+        count2 = 0
+        prior = defaultdict(list)
+        # Display
+        for rv, marg in tuples:
+            rv_label = str(rv).split(' ')[0]
+            if rv_label[:4] == 'str_':
+                continue
+            largest = -1
+            for label in marg:
+                if label > largest:
+                    largest = label
+            names = global_dict[rv_label]
+
+            # if np.isclose(largest, 1.0/len(names)):
+            #     continue
+            for i, label in enumerate(marg):
+                prior[rv_label].append((names[i], label))
+                if np.isclose(label, largest):
+                    #pdb.set_trace()
+                    if rv_label in prediction:
+                        prediction[rv_label].append(names[i])
+                    else:
+                        prediction[rv_label]=[names[i]]
+
+        keylist = prior.keys()
+        # for key in keylist:
+        #     print key
+        #     print prior[key]
+        #     print
+        keylist = prediction.keys()
+        correct_set = set()
+        for key in keylist:
+            funclist = prediction[key]
+            label=set()
+            #print key
+            for (func, lib) in funclist:
+                if len(func.split('{')) > 1:
+                    predicted_label = func.split('{')[1].split('}')[0]
+                else:
+                    predicted_label = func
+                label.add(predicted_label)
+            if 'None' in label and len(label)==1:
+                count2 += 1
+            elif key in label:
+                count += 1
+                correct_set.add(key)
+            # else:
+            #     print key
+
+        #         if len(label) > 1:
+        #             count2+=1
+            # else:
+            #     print key, prior[key], label
+        #print count, count2,len(keylist)
+        print "correct prediction, None prediction, total prediction, precision:"
+        print count, count2, len(keylist), count*1.0/(len(keylist)-count2)
+        return prediction, prior, correct_set
+
+def BP_with_strings(queryPath_2gram, string_dict, db):
+    global LBP_MAX_ITERS
+    global THRES
+    threshold=THRES
+    g = fg.Graph()
+    global_node_dict = dict()
+    global_edge_dict = dict()
+    global_sim_dict = defaultdict(float)
+    rvlabels = defaultdict(list)
+    if type(queryPath_2gram) == type(''):
+        query_2gram = p.load(open(queryPath_2gram, 'rb'))
+    else:
+        query_2gram = queryPath_2gram
+    hasDistance = False
+    if type(query_2gram[0][0][0]) == type((1,2)):
+        hasDistance = True
+
+    # # first identify the name that are very sure
+    sure_dict = defaultdict(list)
+    for i in query_2gram:
+        if i[2] > 0.99:
+            if not hasDistance:
+                test_src = i[0][0]
+                test_des = i[0][1]
+            else:
+                test_src = i[0][0][0]
+                test_des = i[0][0][1]
+            if test_src == test_des:
+                continue
+#             # initialize the dictionary
+            if not global_node_dict.has_key(test_src):
+                global_node_dict[test_src] = []
+            if not global_node_dict.has_key(test_des):
+                global_node_dict[test_des] = []
+            if not global_edge_dict.has_key((test_src, test_des)):
+                global_edge_dict[(test_src, test_des)] = []
+            funcList = i[1]
+            # if len(funcList) > 200:
+            #     continue
+            for predicted_func in funcList:
+                if hasDistance:
+                    querydistance = i[0][1]
+                    resultdistance = predicted_func[3]
+                    if querydistance != resultdistance:
+                        continue
+
+                src_funcname = predicted_func[2][0]
+                des_funcname = predicted_func[2][1]
+                libraryname = predicted_func[0]
+                # find the src function if it's already in the dict,
+                # otherwise, add it to the dict
+                if (test_src, libraryname) not in sure_dict[test_src]:
+                    sure_dict[test_src].append((src_funcname, libraryname))
+                    global_node_dict[test_src].append((src_funcname, libraryname))
+                    rvlabels[test_src].append(src_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
+                # do the same thing to des function
+                if (test_des, libraryname) not in sure_dict[test_des]:
+                    sure_dict[test_des].append((des_funcname, libraryname))
+                    global_node_dict[test_des].append((des_funcname, libraryname))
+                    rvlabels[test_des].append(des_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
+    p.dump(sure_dict, open('sure_dict','w'))
+
+    for i in query_2gram:
+        if i[2] > threshold:
+            if not hasDistance:
+                test_src = i[0][0]
+                test_des = i[0][1]
+            else:
+                test_src = i[0][0][0]
+                test_des = i[0][0][1]
+            if test_src == test_des:
+                continue
+#             # initialize the dictionary
+            if not global_node_dict.has_key(test_src):
+                global_node_dict[test_src] = []
+            if not global_node_dict.has_key(test_des):
+                global_node_dict[test_des] = []
+            if not global_edge_dict.has_key((test_src, test_des)):
+                global_edge_dict[(test_src, test_des)] = []
+            funcList = i[1]
+            for predicted_func in funcList:
+                if hasDistance:
+                    querydistance = i[0][1]
+                    resultdistance = predicted_func[3]
+                    if querydistance != resultdistance:
+                        continue
+
+                src_funcname = predicted_func[2][0]
+                des_funcname = predicted_func[2][1]
+                libraryname = predicted_func[0]
+                if test_src in sure_dict and (src_funcname, libraryname) not in sure_dict[test_src]:
+                    continue
+                if test_des in sure_dict and (des_funcname, libraryname) not in sure_dict[test_des]:
+                    continue
+                # find the src function if it's already in the dict,
+                # otherwise, add it to the dict
+                if (src_funcname, libraryname) not in global_node_dict[test_src]:
+                    global_node_dict[test_src].append((src_funcname, libraryname))
+                    rvlabels[test_src].append(src_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
+                # do the same thing to des function
+                if (des_funcname, libraryname) not in global_node_dict[test_des]:
+                    global_node_dict[test_des].append((des_funcname, libraryname))
+                    rvlabels[test_des].append(des_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
+
+                # add this edge to the edge dictionary
+                if (src_funcname, des_funcname, libraryname) not in global_edge_dict[(test_src, test_des)]:
+                    global_edge_dict[(test_src, test_des)].append((src_funcname, des_funcname, libraryname))
+                    if global_sim_dict[(src_funcname, des_funcname, libraryname)] < i[2]:
+                        global_sim_dict[(src_funcname, des_funcname, libraryname)] = i[2]
+
+    string_count = defaultdict(int)
+    # add functions as random variables and add factors between function and string nodes
+    for key in global_node_dict:
+        rvlabels[test_src].append('None')
+        length = len(global_node_dict[key])
+        rv_func = g.rv(key, length + 1) # None label is the last item
+        for idx, (prediction, library) in enumerate(global_node_dict[key]):
+            query = db.load({"name":prediction})
+            if not query:
+                string_list = []
+            else:
+                string_list = query['strings']
+            string_shared = set(string_dict[key]) & set(string_list)
+            string_differ = set(string_dict[key]) | set(string_list) - string_shared
+            #string_differ = set(string_list) - set(string_dict[key])
+            for string in string_shared:
+                count = string_count[string]
+                string_count[string] += 1
+                rv_string = g.rv('str_' + string + str(count), 1)
+                fillvalue = 1.0/(length + 10)
+                pot=np.full((length + 1, 1), fillvalue)
+                pot[idx, 0] = 10 * fillvalue
+                factor = g.factor([rv_func, rv_string], potential=pot, name = '')
+
+            for string in string_differ:
+                count = string_count[string]
+                string_count[string] += 1
+                rv_string = g.rv('str_' + string + str(count), 1)
+                fillvalue = 1.0/(10 * length + 1)
+                pot=np.full((length + 1, 1), 10 * fillvalue)
+                pot[idx, 0] = fillvalue
+                factor = g.factor([rv_func, rv_string], potential=pot, name = '')
+        global_node_dict[key].append(('None', 'None'))
+    p.dump(global_node_dict, open('global_node_dict','w'))
+
+
+    # add factors
+    for (test_src, test_des) in global_edge_dict.keys():
+        src_rv = g.get_rvs()[test_src]
+        des_rv = g.get_rvs()[test_des]
+        src_list = global_node_dict[test_src]
+        des_list = global_node_dict[test_des]
+        # set the probability for src_rv and des_rv
+        # first find if there is an existing probability, if so, add to it
+        # otherwise, initialize a new probability matrix
+        factor1 = None
+        probability1 = None
+
+        if test_src != test_des:
+            pot=np.full((len(src_list), len(des_list)), 0.01)
+            #pot[-1, -1] = 0.1
+            factor1 = g.factor([src_rv, des_rv], potential=pot, name = '')
+            probability1 = factor1.get_potential()
+
+        # if there is an matching edge
+        if len(global_edge_dict[(test_src, test_des)]) > 0:
+            for (src_funcname, des_funcname, libraryname) in global_edge_dict[(test_src, test_des)]:
+                sim = global_sim_dict[(src_funcname, des_funcname, libraryname)]
+                src_ind = src_list.index((src_funcname, libraryname))
+                des_ind = des_list.index((des_funcname, libraryname))
+                if src_rv == factor1.get_rvs()[0]:
+                    #probability1[src_ind, des_ind] = 2**(sim + 2) - 7
+                    probability1[src_ind, des_ind] = 0.9
+                else:
+                    #probability1[des_ind, src_ind] = 2**(sim + 2) - 7
+                    probability1[des_ind, src_ind] = 0.9
+        # else:
+        #     if len(src_list) > 0 and len(des_list) > 0:
+        #         probability1[:, -1] = 0.3
+        #         probability1[-1, :] = 0.3
+        factor1.set_potential(probability1)
+        #factor1.name += src_funcname + '->' + des_funcname + '\n'
+
+    iters, converged = g.lbp(global_node_dict, normalize=True, max_iters=LBP_MAX_ITERS, progress=False)
+    g.global_dict = global_node_dict
+    print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
+#     results = g.get_func_prediction(normalize=True)
+#     p.dump(results, open('prediction','w'))
+#     results = g.accuracy_of_functions(normalize=True)
+    return g
+
 
 #############################################################################
 # get a list of components for each version
@@ -133,7 +424,7 @@ def getcomponentsbyquickunionwithexcude(twogramspath, funcprediction=None):
         twograms = p.load(open(twogramspath, 'rb'))
     else:
         twograms = twogramspath
-    global THRES
+    #global THRES
     # get all the possible functions
     element = set()
     adj = dict()
@@ -143,7 +434,7 @@ def getcomponentsbyquickunionwithexcude(twogramspath, funcprediction=None):
     if type(twograms[0][0][0]) == type((1,2)):
         hasDistance = True
     for twogram in twograms:
-        if twogram[2] > THRES:
+        if twogram[2] > 0.95:
             if not hasDistance:
                 test_src = twogram[0][0]
                 test_des = twogram[0][1]
@@ -180,7 +471,7 @@ def getcomponentsbyquickunionwithexcude(twogramspath, funcprediction=None):
     eleNodeMap = genNodeList(list(element))
 
     for twogram in twograms:
-        if twogram[2] > THRES:
+        if twogram[2] > 0.95:
             if not hasDistance:
                 test_src = twogram[0][0]
                 test_des = twogram[0][1]
@@ -203,9 +494,10 @@ def getcomponentsbyquickunionwithexcude(twogramspath, funcprediction=None):
                 if funcprediction is not None:
                     if (src, pairs[0]) not in funcprediction[test_src] or (des, pairs[0]) not in funcprediction[test_des]:
                         continue
+
                 if test_des + '##' + pairs[0] + '#' + des in eleNodeMap and test_src + '##' + pairs[0] + '#' + src in eleNodeMap:
                     quickUnion((test_src + '##' + pairs[0] + '#' + src, test_des + '##' + pairs[0] + '#' + des), eleNodeMap)
-
+                    print test_src + '##' + pairs[0] + '#' + src, test_des + '##' + pairs[0] + '#' + des
 
     # get the groups
     groups=dict()
@@ -219,92 +511,102 @@ def getcomponentsbyquickunionwithexcude(twogramspath, funcprediction=None):
     components = []
     for component in groups:
         components.append(groups[component])
-    #print sorted(components, key=lambda x: x)
-    p.dump(components, open('component','w'))
+    components = sorted(components, key=lambda x: len(x))
+    #p.dump(components, open('component','w'))
 
-    finalprediction = defaultdict(set)
-    for component in groups:
-        if len(groups[component]) > 0:
-            for element in groups[component]:
-                test_func = element.split('##')[0]
-                prediction = element.split('##')[1].split('#')[1]
-                library = element.split('##')[1].split('#')[0]
-                finalprediction[test_func].add((prediction, library))
-
-    count = 0
-    count_total=0
-    for key in finalprediction:
-        if 'libcrypto' in [i[1] for i in finalprediction[key]]:
-            count_total += 1
-        if (key, 'libcrypto') in finalprediction[key]:
-            count += 1
-    print count, count_total
+    # finalprediction = defaultdict(set)
+    # for component in groups:
+    #     if len(groups[component]) > 0:
+    #         for element in groups[component]:
+    #             test_func = element.split('##')[0]
+    #             prediction = element.split('##')[1].split('#')[1]
+    #             library = element.split('##')[1].split('#')[0]
+    #             finalprediction[test_func].add((prediction, library))
+    #
+    # count = 0
+    # count_total=0
+    # for key in finalprediction:
+    #     if 'libcrypto' in [i[1] for i in finalprediction[key]]:
+    #         count_total += 1
+    #     if (key, 'libcrypto') in finalprediction[key]:
+    #         count += 1
+    # print count, count_total
     return components
 
 
 #############################################################################
 #run 2-rounds of BP algorithm, firstly for function names, then for versions
 #############################################################################
-def runBPversions(g, binary):
+def runBPversions(queryPath_2gram):
     global LBP_MAX_ITERS
     global THRES
+    threshold = THRES
+    if type(queryPath_2gram) == type(''):
+        query_2gram = p.load(open(queryPath_2gram, 'rb'))
+    else:
+        query_2gram = queryPath_2gram
+    hasDistance = False
+    if type(query_2gram[0][0][0]) == type((1,2)):
+        hasDistance = True
 
-    #sim_matrix = emb.test_similarity(vectors, vectors)
-    # get the dictionary that maps the rv_label to the predicted function name
-    function_name_dict = g.get_func_prediction()
-    global_version_list = os.listdir('/home/yijiufly/Downloads/codesearch/data/openssl')
-    # set the prior probability for each random variable
-    for key in function_name_dict:
-        name_list = function_name_dict[key]
-        rvs = g.get_rvs()[key]
-        priorsBelieve = np.zeros(len(global_version_list))
-        test_emb = binary.funcName2emb[key]
-        for (func, libName) in name_list:
-            db = mdb('oss', libName + '_collection')
-            query = db.load({'name': func})
-            embeddings = []
-            versionnames = []
-            if type(query) != type([]):
-                versionnames.append(query['version'])
-                embeddings.append(query['data'])
-                #continue
+    global_node_dict = defaultdict(list)
+    version_set = set()
+    g = fg.Graph()
+    global_edge_set = set()
+    for i in query_2gram:
+        if i[2] > threshold:
+            if not hasDistance:
+                test_src = i[0][0]
+                test_des = i[0][1]
             else:
-                for q in query:
-                    versionnames.append(q['version'])
-                    embeddings.append(q['data'])
-            sim_matrix = emb.test_similarity([test_emb], embeddings)
-            scores = sim_matrix.reshape(len(embeddings))
-            #pdb.set_trace()
-            #scores=np.exp(scores)-1
-            for i in range(len(scores)):
-                if scores[i]>0.99:
-                    ind = global_version_list.index(versionnames[i])
-                    priorsBelieve[ind] = max(scores[i], priorsBelieve[ind])
+                test_src = i[0][0][0]
+                test_des = i[0][0][1]
+            if test_src == test_des:
+                continue
 
-            #print versionnames[max]
-        rvs.n_opts = len(global_version_list)
-        rvs.prior = priorsBelieve
+            funcList = i[1]
+            for predicted_func in funcList:
+                if hasDistance:
+                    querydistance = i[0][1]
+                    resultdistance = predicted_func[3]
+                    if querydistance != resultdistance:
+                        continue
 
-    # second round, change the probability of all the factors
-    factors = g.get_factors()
-    #rvs = factors[0].get_rvs()
-    factor_probability = np.full((len(global_version_list), len(global_version_list)), 0.01)
-    np.fill_diagonal(factor_probability, 0.99)
-    for factor in factors:
-        factor.set_potential(factor_probability)
-        # rvs = factors[0].get_rvs()
-        # src_rv = rvs[0]
-        # des_rv = rvs[1]
-        # g.factor([src_rv, des_rv], potential=factor_probability)
+                version = predicted_func[1]
+                libraryname = predicted_func[0]
+                version_set.add((libraryname, version))
+                if (libraryname, version) not in global_node_dict[test_src]:
+                    global_node_dict[test_src].append((libraryname, version))
+
+                if (libraryname, version) not in global_node_dict[test_des]:
+                    global_node_dict[test_des].append((libraryname, version))
+
+                global_edge_set.add((test_src, test_des))
+
+    version_list = list(version_set)
+    for key in global_node_dict:
+        length = len(version_set)
+        priorsBelieve = np.zeros(len(version_set))
+        for (libraryname, version) in global_node_dict[key]:
+            ind = version_list.index((libraryname, version))
+            priorsBelieve[ind] = 1
+        rv_func = g.rv(key, length, prior = priorsBelieve)
+
+    for (test_src, test_des) in global_edge_set:
+        src_rv = g.get_rvs()[test_src]
+        des_rv = g.get_rvs()[test_des]
+        factor_probability = np.full((len(version_list), len(version_list)), 0.01)
+        np.fill_diagonal(factor_probability, 0.99)
+        factor1 = g.factor([src_rv, des_rv], potential=factor_probability, name = '')
 
     # run BP
     #pdb.set_trace()
-    iters, converged = g.lbp(g.global_dict, normalize=True, max_iters=LBP_MAX_ITERS, progress=False)
+    iters, converged = g.lbp(global_node_dict, normalize=True, max_iters=LBP_MAX_ITERS, progress=False)
     print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
     #print
     # Print out the final marginals
     #counts = g.print_rv_marginals(global_dict, normalize=True)
-    counts = g.count_rv_marginals2(global_version_list, normalize=True)
+    counts = g.count_rv_marginals2(version_list, normalize=True)
     #counts = g.accuracy_of_functions(global_dict, normalize=True)
     #counts = g.print_None_accuracy(global_dict, folder, normalize=True)
     return counts
@@ -319,6 +621,7 @@ def runBPfunctionname(queryPath_2gram, folder):
     # build global dict according to candidate 2-gram
     # global dict stores the candidate version and function for each function in testing binary
     global_dict = defaultdict(list)
+    rvlabels = defaultdict(list)
     if type(queryPath_2gram) == type(''):
         query_2gram = p.load(open(queryPath_2gram, 'rb'))
     else:
@@ -327,7 +630,7 @@ def runBPfunctionname(queryPath_2gram, folder):
     if type(query_2gram[0][0][0]) == type((1,2)):
         hasDistance = True
 
-    # first identify the name that are very sure
+    # # first identify the name that are very sure
     sure_dict = defaultdict(list)
     for i in query_2gram:
         if i[2] > 0.999:
@@ -355,13 +658,15 @@ def runBPfunctionname(queryPath_2gram, folder):
                 libraryname = predicted_func[0]
                 # find the src function if it's already in the dict,
                 # otherwise, add it to the dict
-                if (src_funcname, libraryname) not in sure_dict[test_src]:
+                if (test_src, libraryname) not in sure_dict[test_src]:
                     sure_dict[test_src].append((src_funcname, libraryname))
                     global_dict[test_src].append((src_funcname, libraryname))
+                    rvlabels[test_src].append(src_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
                 # do the same thing to des function
-                if (des_funcname, libraryname) not in sure_dict[test_des]:
+                if (test_des, libraryname) not in sure_dict[test_des]:
                     sure_dict[test_des].append((des_funcname, libraryname))
                     global_dict[test_des].append((des_funcname, libraryname))
+                    rvlabels[test_des].append(des_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
     p.dump(sure_dict, open('sure_dict','w'))
 
     # add other labels, if it contradict to the very sure labels, don't add it
@@ -398,9 +703,11 @@ def runBPfunctionname(queryPath_2gram, folder):
                 # otherwise, add it to the dict
                 if (src_funcname, libraryname) not in global_dict[test_src]:
                     global_dict[test_src].append((src_funcname, libraryname))
+                    rvlabels[test_src].append(src_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
                 # do the same thing to des function
                 if (des_funcname, libraryname) not in global_dict[test_des]:
                     global_dict[test_des].append((des_funcname, libraryname))
+                    rvlabels[test_des].append(des_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
 
     # add functions as random variables
     for key in global_dict:
@@ -432,7 +739,9 @@ def runBPfunctionname(queryPath_2gram, folder):
             des_list = global_dict[test_des]
             src_rv = g.get_rvs()[test_src]
             des_rv = g.get_rvs()[test_des]
-
+            funcList = i[1]
+            if len(funcList) == 0:
+                continue
             # set the probability for src_rv and des_rv
             # first find if there is an existing probability, if so, add to it
             # otherwise, initialize a new probability matrix
@@ -446,10 +755,10 @@ def runBPfunctionname(queryPath_2gram, folder):
 
             if factor1 == None and test_src != test_des:
                 pot=np.full((len(src_list), len(des_list)), 0.1)
-                factor1 = g.factor([src_rv, des_rv], potential=pot)
+                factor1 = g.factor([src_rv, des_rv], potential=pot, name = '')
                 probability1 = factor1.get_potential()
 
-            funcList = i[1]
+
             for predicted_func in funcList:
                 if hasDistance:
                     querydistance = i[0][1]
@@ -471,19 +780,156 @@ def runBPfunctionname(queryPath_2gram, folder):
                     probability1[des_ind, src_ind] = 0.99
 
             factor1.set_potential(probability1)
+            factor1.name += src + '->' + des + '\n'
     #print 'Begin Running LBP'
-    iters, converged = g.lbp(global_dict, normalize=True, max_iters=20, progress=False)
+    iters, converged = g.lbp(global_dict, normalize=True, max_iters=LBP_MAX_ITERS, progress=False)
     g.global_dict = global_dict
     print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
     #g.print_messages()
     # Print out the final marginals
     results = g.get_func_prediction(normalize=True)
     p.dump(results, open('prediction','w'))
+    none_nodes = set()
+    for key in results.keys():
+        predictions = [i[0][0] for i in results[key]]
+        if key not in predictions:
+            none_nodes.add(key)
+    p.dump(none_nodes, open('none_nodes', 'w'))
     #results = g.print_rv_marginals(global_dict, normalize=True)
     #results = g.count_rv_marginals2(global_dict, normalize=True)
     results = g.accuracy_of_functions(normalize=True)
+    g.print_graph('BP.dot')
     #results = g.print_None_accuracy(global_dict, folder, normalize=True)
     return results
+
+
+def BP_with_penalty(queryPath_2gram):
+    global LBP_MAX_ITERS
+    global THRES
+    threshold=THRES
+    g = fg.Graph()
+    global_node_dict = dict()
+    global_edge_dict = dict()
+    rvlabels = defaultdict(list)
+    if type(queryPath_2gram) == type(''):
+        query_2gram = p.load(open(queryPath_2gram, 'rb'))
+    else:
+        query_2gram = queryPath_2gram
+    hasDistance = False
+    if type(query_2gram[0][0][0]) == type((1,2)):
+        hasDistance = True
+
+    for i in query_2gram:
+        if i[2] > threshold:
+            if not hasDistance:
+                test_src = i[0][0]
+                test_des = i[0][1]
+            else:
+                test_src = i[0][0][0]
+                test_des = i[0][0][1]
+            if test_src == test_des:
+                continue
+            # initialize the dictionary
+            if not global_node_dict.has_key(test_src):
+                global_node_dict[test_src] = []
+            if not global_node_dict.has_key(test_des):
+                global_node_dict[test_des] = []
+            if not global_edge_dict.has_key((test_src, test_des)):
+                global_edge_dict[(test_src, test_des)] = []
+
+
+            funcList = i[1]
+            for predicted_func in funcList:
+                if hasDistance:
+                    querydistance = i[0][1]
+                    resultdistance = predicted_func[3]
+                    if querydistance != resultdistance:
+                        continue
+
+                src_funcname = predicted_func[2][0]
+                des_funcname = predicted_func[2][1]
+                libraryname = predicted_func[0]
+
+                # find the src function if it's already in the dict,
+                # otherwise, add it to the dict
+                if (src_funcname, libraryname) not in global_node_dict[test_src]:
+                    global_node_dict[test_src].append((src_funcname, libraryname))
+                    rvlabels[test_src].append(src_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
+                # do the same thing to des function
+                if (des_funcname, libraryname) not in global_node_dict[test_des]:
+                    global_node_dict[test_des].append((des_funcname, libraryname))
+                    rvlabels[test_des].append(des_funcname + ', ' + '(' + src_funcname + ', ' + des_funcname + ')')
+
+                # add this edge to the edge dictionary
+                if (src_funcname, des_funcname, libraryname) not in global_edge_dict[(test_src, test_des)]:
+                    global_edge_dict[(test_src, test_des)].append((src_funcname, des_funcname, libraryname))
+
+    # add functions as random variables
+    for key in global_node_dict:
+        #src_list = global_dict[key]
+        #a = [list(i) for i in src_list]
+        #if key not in [row[0] for row in a]:
+        #global_dict[key] = list(set((item[0], item[1]) for item in global_dict[key]))
+        global_node_dict[key].append(('None', 'None'))
+        rvlabels[test_src].append('None')
+        g.rv(key, len(global_node_dict[key])) # None label is the last item
+    p.dump(global_node_dict, open('global_node_dict','w'))
+
+    # add factors
+    for (test_src, test_des) in global_edge_dict.keys():
+        src_rv = g.get_rvs()[test_src]
+        des_rv = g.get_rvs()[test_des]
+        src_list = global_node_dict[test_src]
+        des_list = global_node_dict[test_des]
+        # set the probability for src_rv and des_rv
+        # first find if there is an existing probability, if so, add to it
+        # otherwise, initialize a new probability matrix
+        factor1 = None
+        probability1 = None
+
+        if test_src != test_des:
+            pot=np.full((len(src_list), len(des_list)), 0.1)
+            #pot[-1, -1] = 0.2
+            factor1 = g.factor([src_rv, des_rv], potential=pot, name = '')
+            probability1 = factor1.get_potential()
+
+        # if there is an matching edge
+        if len(global_edge_dict[(test_src, test_des)]) > 0:
+            for (src_funcname, des_funcname, libraryname) in global_edge_dict[(test_src, test_des)]:
+                src_ind = src_list.index((src_funcname, libraryname))
+                des_ind = des_list.index((des_funcname, libraryname))
+                if src_rv == factor1.get_rvs()[0]:
+                    probability1[src_ind, des_ind] = 0.99
+                else:
+                    probability1[des_ind, src_ind] = 0.99
+
+        else:
+            if len(src_list) > 0 and len(des_list) > 0:
+                probability1[:, -1] = 0.9
+                probability1[-1, :] = 0.9
+#             elif len(src_list) > 0 and len(des_list) == 0:
+#                 if src_rv == factor1.get_rvs()[0]:
+#                     probability1[-1, 0] = 0.3
+#                 else:
+#                     probability1[0, -1] = 0.3
+#             elif len(src_list) == 0 and len(des_list) > 0:
+#                 if src_rv == factor1.get_rvs()[0]:
+#                     probability1[0, -1] = 0.3
+#                 else:
+#                     probability1[-1, 0] = 0.3
+            else:
+                continue
+        factor1.set_potential(probability1)
+        #factor1.name += src_funcname + '->' + des_funcname + '\n'
+
+    iters, converged = g.lbp(global_node_dict, normalize=True, max_iters=LBP_MAX_ITERS, progress=False)
+    g.global_dict = global_node_dict
+    print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
+    results = g.get_func_prediction(normalize=True)
+    p.dump(results, open('prediction','w'))
+    results = g.accuracy_of_functions(normalize=True)
+    return g
+
 
 #############################################################################
 # run BP algorithm, label is library plus version plus function name
@@ -683,6 +1129,7 @@ def runFactorGraph2gram(queryPath_2gram, folder, threshold=0.9999):
     #counts = g.print_rv_marginals(global_dict, normalize=True)
     #counts = g.count_rv_marginals2(global_dict, normalize=True)
     counts = g.accuracy_of_functions(global_dict, normalize=True)
+
     #counts = g.print_None_accuracy(global_dict, folder, normalize=True)
     return counts
 
@@ -774,12 +1221,13 @@ def three_fold_cross_validation():
 if __name__ == '__main__':
     global LBP_MAX_ITERS
     global THRES
-    LBP_MAX_ITERS =0
-    THRES = 0.99
+    LBP_MAX_ITERS = 40
+    THRES = 0.9999
     dir = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'
     folders = os.listdir(dir)
     folders.sort()
     #print folders.index('nginx-{openssl-1.0.1j}{zlib-1.2.7.3}')
     #parallelQuery(folders)
-    test_some_binary_ngram(46,47,folders)
+    selected = ['nginx-{openssl-0.9.8p}{zlib-1.2.11}', 'nginx-{openssl-0.9.8t}{zlib-1.2.8}', 'nginx-{openssl-0.9.8w}{zlib-1.2.11}', 'nginx-{openssl-1.0.0a}{zlib-1.2.10}', 'nginx-{openssl-1.0.0g}{zlib-1.2.7.3}', 'nginx-{openssl-1.0.0i}{zlib-1.2.7.2}', 'nginx-{openssl-1.0.0j}{zlib-1.2.8}', 'nginx-{openssl-1.0.0k}{zlib-1.2.7.1}', 'nginx-{openssl-1.0.0p}{zlib-1.2.8}', 'nginx-{openssl-1.0.1a}{zlib-1.2.7}', 'nginx-{openssl-1.0.1b}{zlib-1.2.7.3}', 'nginx-{openssl-1.0.1e}{zlib-1.2.7.3}', 'nginx-{openssl-1.0.1s}{zlib-1.2.7}', 'nginx-{openssl-1.0.2g}{zlib-1.2.8}', 'nginx-{openssl-1.0.2m}{zlib-1.2.9}', 'nginx-{openssl-1.1.0b}{zlib-1.2.7.1}']
+    test_some_binary_ngram(0,len(folders),folders)
     #three_fold_cross_validation()
