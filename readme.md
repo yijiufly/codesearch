@@ -1,4 +1,3 @@
-```
 codesearch/
           __init__.py
           data/
@@ -8,7 +7,6 @@ codesearch/
           binary.py                                       Binary class and TestBinary class
           main.py                                         call BP algorithm
           preprocess.py                                   build callgraph using IDA Pro. convert .gdl callgraph to .dot file
-```
 
 ## To generate embeddings for a library:
 ```
@@ -21,11 +19,11 @@ lib/
   ......
 ```
 1. generate IDA files
-  run python3 embedding_w2v/extractor.py
+  run python3 Gemini/gemini_feature_extraction_ST.py
 2. generate function embedding
   run scripts/generateEMB.sh
 3. generate callgraph, .dot file
-  run generateIDA.sh
+  run python scripts/gencallgraph.py
 
 
 ## To build LSH database

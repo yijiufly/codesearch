@@ -20,7 +20,7 @@ class db:
     def __init__(self):
         self.engine = None
 
-    def loadHashMap(self, confignames, storage_object, dim=64):
+    def loadHashMap(self, confignames, storage_object, dim=64, projections=20):
         # Create redis storage adapter
         #redis_object = Redis(host='localhost', port=6379, db=0)
         #self.redis_storage = RedisStorage(redis_object)
@@ -41,8 +41,7 @@ class db:
 
             if config is None:
                 # Config is not existing, create hash from scratch, with 20 projections
-                self.lshash.append(RandomBinaryProjections(configname, 20))
-                #self.lshash.append(RandomDiscretizedProjections(configname, 6, 40))
+                self.lshash.append(RandomBinaryProjections(configname, projections))
                 print('new configuration!')
             else:
                 # Config is existing, create hash with None parameters

@@ -34,19 +34,9 @@ if __name__ == '__main__':
     # get as an argument
     try:
         ida_path = sys.argv[1]  # args.path
-        #ida_path = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.0.1m}{zlib-1.2.7.2}"
-        #ida_path = '/home/yijiufly/Downloads/codesearch/data'
-        #ida_path = '/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2/zlib_1_2_11'
-        #ida_path = '/home/yijiufly/Downloads/codesearch/data/nginx/openssl-1.0.1d/objfiles'
-        #ida_path = '/home/yijiufly/Downloads/codesearch/Gemini/testingdataset/database/097j'
-        # pemb = loadFiles(ida_path, ".emb")
-        # if len(pemb) > 0:
-        #     print(ida_path + '/' + pemb[0])
-        #     os._exit(0)
         ida = loadFiles(ida_path + '/objfiles', ".ida")
         # intialtize embedding
         emb = Embedding()
-        #OUTPATH = "/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/funcemb_testing/"
         funcname_all = []
         embedding_all = []
         func_name_list_with_size_all = []
@@ -63,22 +53,15 @@ if __name__ == '__main__':
         p.dump(embedding_all, open(embfile, 'wb'), protocol=2)
         p.dump(funcname_all, open(ida_path + "/libz.so_newmodel.nam", "wb"), protocol=2)
         p.dump(func_name_list_with_size_all, open(ida_path + "/libz.so_newmodel_withsize.nam", "wb"), protocol=2)
-            #p.dump(fullfuncname, open(idapath + ".fullnam", "wb"))
-            # name = embfile.split('/')[-1]
-            # label = embfile.split('/')[-2]
-            # #label = label[8:] + '_' + name
-            # for i in range(len(embedding)):
-            #     #OUTFILE = OUTPATH + label[8:] + "_"+ name[:-8] + "{" + nams[i] + "}.emb"
-            #     OUTFILE = OUTPATH + label + "{" + funcname[i] + "}.emb"
-            #     #print OUTFILE
-            #     file = open(OUTFILE,'wb')
-            #     p.dump(embedding[i], file, protocol=2)
-            #     file.close()
 
-        # check wheter ida processing done or not
-        # if embfile is None:
-        #     print("no emb output")
-        # else:
-        #     print(embfile)
+        # combine all the str files into one dictionary
+        strings = loadFiles(ida_path + '/objfiles', ".str")
+        global_string_dict = dict()
+        for str_file in strings:
+            str_dict = p.load(open(ida_path + '/objfiles/' + str_file, 'r'))
+            global_string_dict.update(str_dict)
+
+        p.dump(global_string_dict, open(ida_path + "/libz.str", "wb"), protocol=2)
+
     except Exception:
         print(traceback.format_exc())

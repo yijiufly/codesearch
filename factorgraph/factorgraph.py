@@ -753,7 +753,7 @@ class Graph(object):
             for i, label in enumerate(marg):
                 #print i, names[i], label
                 if np.isclose(label, largest):
-                    prediction[rv_label].add((names[i], label))
+                    prediction[rv_label].add(names[i])
 
         return prediction
 
