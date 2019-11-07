@@ -5,3 +5,11 @@ tmp/
 Gemini/manual/
 Gemini/testingdataset/
 Gemini/trainingdataset/
+*.py~
+*.ipynb*
+srwr/
+binaries/
+sslh/
+test/
+tqdm/
+rawfeatureextractor/

@@ -1,4 +1,6 @@
+## Structure
 codesearch/
+```
           __init__.py
           data/
                     versiondetect/
@@ -7,10 +9,11 @@ codesearch/
           binary.py                                       Binary class and TestBinary class
           main.py                                         call BP algorithm
           preprocess.py                                   build callgraph using IDA Pro. convert .gdl callgraph to .dot file
+```
 
 ## To generate embeddings for a library:
 ```
-structure
+library folder structure
 lib/
       version1/
                   lib.so
