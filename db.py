@@ -1,16 +1,15 @@
-from nearpy import Engine
-from nearpy.hashes import RandomBinaryProjections, RandomDiscretizedProjections, RandomBinaryProjectionTree, RandomBinaryProjectionTreeNode
 import numpy as np
 from redis import Redis
 import pymongo
+import sys
+sys.path.insert(0, './NearPy')
 from nearpy.storage import RedisStorage, MongoStorage
 from nearpy.filters import NearestFilter, UniqueFilter, RankNFilter, DistanceThresholdFilter
+from nearpy import Engine
+from nearpy.hashes import RandomBinaryProjections, RandomDiscretizedProjections, RandomBinaryProjectionTree, RandomBinaryProjectionTreeNode
 import pickle as p
 import time
 import pdb
-import sys
-sys.path.insert(0, './embedding_w2v')
-from embedding_w2v.embedding import Embedding
 from Quick_Find import *
 from Quick_Union import *
 
@@ -113,7 +112,7 @@ class db:
                 #p.dump(N_query, f)
                 #f.close()
                 #N_query = []
-        print('all has done, time: %s' % (time.time() - start_time))
+        print('query has done, time: %s' % (time.time() - start_time))
         #f = open('data/versiondetect/train_kNN_end.p', 'w')
         #p.dump(N_query, f)
         #f.close()
@@ -152,8 +151,7 @@ class db:
                     self.engine.storage.store_vector(self.lshash.hash_name, key, vector, ngram)
             print "ungroup one bucket"
 
-    def grouping(self):
-        emb = Embedding()
+    def grouping(self, emb):
         for lshash in self.lshash:
             lshashname = lshash.hash_name
             keys = self.engine.storage.get_all_bucket_keys(lshashname)

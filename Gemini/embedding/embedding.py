@@ -31,6 +31,9 @@ flags.DEFINE_string('data_file', 'train.pickle', "Stores the train sample after 
 flags.DEFINE_string('test_file', 'test.pickle', "Stores the test sample after preprocessing")
 flags.DEFINE_integer('T', 5, "Number of time to be interated while embedding generation")
 flags.DEFINE_string('f', '', 'kernel')
+flags.DEFINE_string('mode', '', 'options')
+flags.DEFINE_string('path', '', 'options')
+flags.DEFINE_string('name', '', 'options')
 PROJ_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
