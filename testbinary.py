@@ -14,7 +14,7 @@ from Quick_Union import *
 from collections import defaultdict
 from collections import Counter
 import numpy as np
-import pdb
+import csv
 class TestBinary(Binary):
     def __init__(self, binaryName, binFolder, dotPath, embFile, namFile, strFile, filterSize=0, configPath='config'):
         print 'init testing binary'
@@ -40,7 +40,8 @@ class TestBinary(Binary):
     def search(self):
         try:
             stringTable = p.load(open(self.strFile, 'r'))
-            mongodb = mdb('oss',  'library_stringtable')
+            mongodb = mdb(self.config.get("Mongodb", "DBNAME"),  self.config.get("Mongodb", "TABLENAME"))
+            #mongodb = mdb('oss', 'library' + '_stringtable')
         except Exception:
             print "Don't have string database, will not use string information"
             mongodb = None
@@ -50,8 +51,7 @@ class TestBinary(Binary):
         self.mongodb = mongodb
         candidateOutput1Gram = os.path.join(self.binFolder, 'test_kNN_1112_1gram.p')
         candidateOutput2Gram = os.path.join(self.binFolder, 'test_kNN_1112_2gram.p')
-        countOutput = os.path.join(self.binFolder, 'out_count1102_1gram.p')
-        predictionOutput = os.path.join(self.binFolder, 'out_prediction1102_1gram.p')
+        predictionOutput = os.path.join(self.binFolder, 'out_prediction1102.csv')
 
         if os.path.isfile(candidateOutput1Gram) and os.path.isfile(candidateOutput2Gram):
             knn1Gram = p.load(open(candidateOutput1Gram, 'rb'))
@@ -63,10 +63,9 @@ class TestBinary(Binary):
         self.knn1Gram = knn1Gram
         self.knn2Gram = knn2Gram
 
-        funcprediction, count = self.BP_with_strings()
+        funcprediction = self.BP_with_strings()
 
-        p.dump(count, open(countOutput, 'w'))
-        p.dump(funcprediction, open(predictionOutput, 'w'))
+        print_CSV(funcprediction, predictionOutput)
 
 
     def queryForOneBinary3Gram(self, outpath):
@@ -253,23 +252,12 @@ class TestBinary(Binary):
         print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
         results = g.get_func_prediction(normalize=True)
         # count for libraries and versions
-        counts = counting(query_1gram, results, threshold)
-        self.get_versions_through_components(query_1gram, results, global_edge_dict, threshold)
-        return results, counts
-
-    def shortest_distance(self, component1, component2):
-        shortest_distance = 1000000
-        for (v, version1) in component1:
-            for (w, version2) in component2:
-                if abs(self.funcName2Ind[v] - self.funcName2Ind[w]) < shortest_distance:
-                    shortest_distance = abs(self.funcName2Ind[v] - self.funcName2Ind[w])
-        return shortest_distance
+        #counts = counting(query_1gram, results, threshold)
+        version_predict = self.get_versions_through_components(query_1gram, results, global_edge_dict, threshold)
+        functionpredict = self.precision_and_recall(results, version_predict)
+        return functionpredict
 
     def get_versions_through_components(self, query_1gram, funcprediction, global_edge_dict, threshold):
-        hasDistance = False
-        if type(query_1gram[0][0][0]) == type((1,2)):
-            hasDistance = True
-
         prediction = defaultdict(set)
         for [(name, distance), predict, sim] in query_1gram:
             if sim > threshold:
@@ -278,19 +266,23 @@ class TestBinary(Binary):
                         continue
                     prediction[name].add(version)
 
+        # group functions on the same call edge
         eleNodeMap = genNodeList(list(prediction.keys()))
         for (src, des) in global_edge_dict.keys():
             if src in prediction.keys() and des in prediction.keys():
                 quickUnion((src, des), eleNodeMap)
 
+        # group functions within the sliding window, and has the same library predictions
         name_size = p.load(open(self.namFile, 'r'))
         all_funcs = [i[0] for i in name_size]
-        slide_window = 10
+        slide_window = 20
         for i, src in enumerate(all_funcs[:-slide_window]):
             for j in range(1, slide_window):
                 des = all_funcs[i + j]
                 if src in prediction.keys() and des in prediction.keys():
-                    if prediction[src] == prediction[des]:
+                    library_src = set([item.split('-')[0] for item in prediction[src]])
+                    library_des = set([item.split('-')[0] for item in prediction[des]])
+                    if library_src == library_des:
                         quickUnion((src, des), eleNodeMap)
 
         # get the groups
@@ -302,70 +294,52 @@ class TestBinary(Binary):
             groups[eleNodeMap[i].parent.num].add(i)
 
         # get the components
-        components = []
         for component in groups:
             votes = Counter()
             for element in groups[component]:
                 votes += Counter(prediction[element])
             sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
             versions = list(filter(lambda x: x[1] >= sorted_count[0][1], sorted_count))
-            print len(groups[component]), versions
-            components.append((groups[component], versions))
 
-        components = sorted(components, key=lambda x: len(x[0]))
-        return components
+            for func in groups[component]:
+                prediction[func] = [version[0] for version in versions]
 
-def accuracy_of_functions(g, rvs=None, normalize=False):
-    # Extract
-    global_dict = g.global_dict
-    tuples = g.rv_marginals(rvs, normalize)
-    prediction = dict()
-    count = 0
-    count2 = 0
-    prior = defaultdict(list)
-    # Display
-    for rv, marg in tuples:
-        rv_label = str(rv).split(' ')[0]
-        if rv_label[:4] == 'str_':
-            continue
-        largest = -1
-        for label in marg:
-            if label > largest:
-                largest = label
-        names = global_dict[rv_label]
-        for i, label in enumerate(marg):
-            prior[rv_label].append((names[i], label))
-            if np.isclose(label, largest):
-                #pdb.set_trace()
-                if rv_label in prediction:
-                    prediction[rv_label].append(names[i])
-                else:
-                    prediction[rv_label]=[names[i]]
+        return prediction
 
-    keylist = prior.keys()
-    keylist = prediction.keys()
-    correct_set = set()
-    for key in keylist:
-        funclist = prediction[key]
-        label=set()
-        #print key
-        for (func, lib) in funclist:
-            if len(func.split('{')) > 1:
-                predicted_label = func.split('{')[1].split('}')[0]
+    def collect_ground_truth(self):
+        # TODO: in order to evaluate the precision and recall, need to know how many functions 
+        # in the testing binary are library functions as ground truth
+        # right now just read it from config file
+        return int(self.config.get("GroundTruth", "LIBRARYFUNCTOTAL"))
+
+    def precision_and_recall(self, name_prediction, version_prediction):
+        librarynames =self.collect_ground_truth()
+        count = 0
+        libraries = ast.literal_eval(self.config.get("GroundTruth", "VERSIONS"))
+        n = 0
+        f = 0
+        keylist = name_prediction.keys()
+        correct_set = set()
+        final_prediction = [['Query Func', 'Prediction', 'Library', 'Version']]
+        for key in keylist:
+            funclist = name_prediction[key]
+            label=set()
+            for (func, lib) in funclist:
+                label.add(func)
+                if func != 'None':
+                    final_prediction.append([key, func, lib, version_prediction[key]])
+            if 'None' in label and len(label)==1:
+                n += 1
+            elif key in label and set(libraries) & set(version_prediction[key]) != set():
+                count += 1
+                correct_set.add(key)
+                f += len(label)-1
             else:
-                predicted_label = func
-            label.add(predicted_label)
-        if 'None' in label and len(label)==1:
-            count2 += 1
-        elif key in label:
-            count += 1
-            correct_set.add(key)
-    print "correct prediction, None prediction, total prediction, precision:"
-    print count, count2, len(keylist), count*1.0/(len(keylist)-count2)
-    return prediction, prior, correct_set
-
-
-
+                f += len(label)
+        print 'precision', '\t', 'recall:'
+        print count*1.0/(len(keylist)-n), '\t', count*1.0/librarynames
+        final_prediction.append(['Precision:', count*1.0/(len(keylist)-n), 'Recall:', count*1.0/librarynames])
+        return final_prediction
 
 def counting(query_1gram, funcprediction, threshold):
     hasDistance = True
@@ -435,3 +409,8 @@ def get_node_prior_belief(knn_all, threshold):
         global_beliefs[func] = beliefs
 
     return global_dict, global_beliefs
+
+def print_CSV(funcpredict, output):
+    with open(output,'wb') as result_file:
+        wr = csv.writer(result_file, dialect='excel')
+        wr.writerows(funcpredict)
