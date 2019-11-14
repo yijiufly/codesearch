@@ -12,6 +12,8 @@ import time
 import traceback
 import multiprocessing
 import argparse
+import mongowrapper.MongoWrapper as mdb
+import ConfigParser
 def loadFiles(PATH, ext=None):  # use .ida or .emb for ida file and embedding file
     filenames = []
     filenames = [f for f in os.listdir(PATH) if f.endswith(ext)]
@@ -58,8 +60,6 @@ def parallelQuery(folders):
     print("--- totoal time: %s seconds ---" % (time.time() - start_time))
 
 def testSomeBinary(i, j, folders, dir, binName):
-    libraryName = 'library'
-    db = mdb('oss', libraryName + '_stringtable')
     #print "PID:", os.getpid()
     #print i,j
     for folder in folders[i:j]:
@@ -103,6 +103,18 @@ def indexing():
     #     build1gram(path_lib, folder,'libssl')
 
 
+def addingStrings(binPath, binName):
+    config = ConfigParser.RawConfigParser()
+    config.read('config')
+    stringfiles = loadFiles(binPath, ext='.str')
+    mongodb = mdb(config.get("Mongodb", "DBNAME"),  config.get("Mongodb", "TABLENAME"))
+    for s in stringfiles:
+        string_dict = p.load(open(s, 'rb'))
+        for key in string_dict.keys():
+            my_dict = {"name": key, "strings": string_dict[key], "version": binName}
+            print my_dict
+            mongodb.save(my_dict)
+
 def parse_command():
 	parser = argparse.ArgumentParser(description='')
 	parser.add_argument("--path", type=str, help="The complete path of folder from which binary file to be preprocessed", required=True)
@@ -137,5 +149,7 @@ if __name__ == '__main__':
     elif mode == "Indexing":
         #indexing()
         grouping()
+    elif mode == "AddingStrings":
+        addingStrings(binPath, binName)
     else:
         print "Invalid command " + mode

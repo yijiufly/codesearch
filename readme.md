@@ -1,16 +1,3 @@
-## Structure
-codesearch/
-```
-          __init__.py
-          data/
-                    versiondetect/
-          db.py                                           db class: build hashmap, index all the train data, query for test data
-          lshknn.py                                       call db, input: the original data and query data we want to put in the hash table, output: the kNN file, build LSH database
-          binary.py                                       Binary class and TestBinary class
-          main.py                                         call BP algorithm
-          preprocess.py                                   build callgraph using IDA Pro. convert .gdl callgraph to .dot file
-```
-
 ## To generate embeddings for a library:
 ```
 library folder structure
@@ -30,11 +17,15 @@ lib/
 
 
 ## To build LSH database
-1. install nearpy library
-   cd Nearpy
-   sudo python setup.py install
 
-2. python lshknn.py
+python main.py --mode=Indexing --path=None --name=None
 
 ## To do query for Test Binaries
-  run python main.py
+An example in /example, can try it out even without the LSH database (query result already included)
+  1. first, unzip test_kNN_1112_2gram.p.zip, the original file is too large
+  2. run the command:
+      python main.py --mode=Searching --path=example --name=nginx-{openssl-1.0.1d}{zlib-1.2.11}
+
+Output:
+print out precision and recall
+detailed prediction in a csv file under the example folder

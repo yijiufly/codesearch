@@ -8,14 +8,14 @@ THRESHOLD = 0.9999
 
 
 [Mongodb]
-DBNAME = 'oss'
-TABLENAME = 'library_stringtable'
+DBNAME = oss
+TABLENAME = library_stringtable
 
 
 [TwoGramRedis]
 CONFIG = ["filted1-2gram-binary0", "filted1-2gram-binary1", "filted1-2gram-binary2"]
 DATABASE = 0
-HOST = 'localhost'
+HOST = localhost
 PORT = 6379
 DIM = 128
 PROJECTIONS = 30
@@ -23,7 +23,7 @@ PROJECTIONS = 30
 [FuncRedis]
 CONFIG = ["filted1-1gram-binary0", "filted1-1gram-binary1", "filted1-1gram-binary2"]
 DATABASE = 1
-HOST = 'localhost'
+HOST = localhost
 PORT = 6379
 DIM = 64
 PROJECTIONS = 20
@@ -31,7 +31,12 @@ PROJECTIONS = 20
 [ThreeGramRedis]
 CONFIG = ["filted1-3gram-binary0", "filted1-3gram-binary1", "filted1-3gram-binary2"]
 DATABASE = 2
-HOST = 'localhost'
+HOST = localhost
 PORT = 6379
 DIM = 192
 PROJECTIONS = 40
+
+
+[GroundTruth]
+LIBRARYFUNCTOTAL = 2982
+VERSIONS = ['openssl-1.0.1d', 'zlib-1.2.11']
