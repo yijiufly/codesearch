@@ -14,6 +14,7 @@ import multiprocessing
 import argparse
 import mongowrapper.MongoWrapper as mdb
 import ConfigParser
+from testFAISS import build2gramDB, build1gramDB
 def loadFiles(PATH, ext=None):  # use .ida or .emb for ida file and embedding file
     filenames = []
     filenames = [f for f in os.listdir(PATH) if f.endswith(ext)]
@@ -102,6 +103,9 @@ def indexing():
     #     build1gram(path_lib, folder,'libcrypto')
     #     build1gram(path_lib, folder,'libssl')
 
+def indexingFaiss():
+    build1gramDB()
+    build2gramDB()
 
 def addingStrings(binPath, binName):
     config = ConfigParser.RawConfigParser()
@@ -149,6 +153,8 @@ if __name__ == '__main__':
     elif mode == "Indexing":
         #indexing()
         grouping()
+    elif mode == "IndexingFaiss":
+        indexingFaiss()
     elif mode == "AddingStrings":
         addingStrings(binPath, binName)
     else:

@@ -15,6 +15,9 @@ from collections import defaultdict
 from collections import Counter
 import numpy as np
 import csv
+import sys
+sys.path.insert(0, "faiss/python")
+import faiss   
 class TestBinary(Binary):
     def __init__(self, binaryName, binFolder, dotPath, embFile, namFile, strFile, filterSize=0, configPath='config'):
         print 'init testing binary'
@@ -49,17 +52,17 @@ class TestBinary(Binary):
 
         self.stringTable = stringTable
         self.mongodb = mongodb
-        candidateOutput1Gram = os.path.join(self.binFolder, 'test_kNN_1112_1gram.p')
-        candidateOutput2Gram = os.path.join(self.binFolder, 'test_kNN_1112_2gram.p')
-        predictionOutput = os.path.join(self.binFolder, 'out_prediction1102.csv')
+        candidateOutput1Gram = os.path.join(self.binFolder, 'test_kNN_1120_1gram.p')
+        candidateOutput2Gram = os.path.join(self.binFolder, 'test_kNN_1120_2gram.p')
+        predictionOutput = os.path.join(self.binFolder, 'out_prediction1120_BP.csv')
 
         if os.path.isfile(candidateOutput1Gram) and os.path.isfile(candidateOutput2Gram):
             knn1Gram = p.load(open(candidateOutput1Gram, 'rb'))
             knn2Gram = p.load(open(candidateOutput2Gram, 'rb'))
         else:
             self.loadBinary()
-            knn1Gram = self.queryForOneBinary1Gram(candidateOutput1Gram)
-            knn2Gram = self.queryForOneBinary2Gram(candidateOutput2Gram)
+            knn1Gram = self.queryForOneBinary1GramFaiss(candidateOutput1Gram)
+            knn2Gram = self.queryForOneBinary2GramFaiss(candidateOutput2Gram)
         self.knn1Gram = knn1Gram
         self.knn2Gram = knn2Gram
 
@@ -110,10 +113,47 @@ class TestBinary(Binary):
         return testkNN
 
 
+    def queryForOneBinary1GramFaiss(self, outpath):
+        index = faiss.read_index("funcemb_aftergrouping_cosine.index")
+        meta = p.load(open('funcmetadata_aftergrouping_cosine.p', 'r'))
+        nodes = []
+        query = []
+        for key in self.funcNameFilted.keys():
+            if self.funcNameFilted[key] != -1:
+                nodes.append(key)
+                emb = self.funcName2emb[key]
+                query.append(emb)
+        query_norm = query / np.linalg.norm(query, axis=1)[:,None]
+        D, I = index.search(np.array(query_norm), 10)
+        N_query = []
+        for query_node, distances, indexes in zip(nodes, D, I):
+            for d, i in zip(distances, indexes):
+                N_query.append([(query_node, 1), meta[i], d])
+        p.dump(N_query, open(outpath, "w"))
+        return N_query
+
+    def queryForOneBinary2GramFaiss(self, outpath):
+        index = faiss.read_index("2gram_aftergrouping_cosine.index")
+        meta = p.load(open('2grammetadata_aftergrouping_cosine.p', 'r'))
+        nodes = []
+        query = []
+        for [twogram, name, distance] in self.twoGramList:
+            nodes.append((name, distance))
+            query.append(twogram)
+        query_norm = query / np.linalg.norm(query, axis=1)[:,None]
+        D, I = index.search(np.array(query_norm), 10)
+        N_query = []
+        for query_node, distances, indexes in zip(nodes, D, I):
+            for d, i in zip(distances, indexes):
+                N_query.append([query_node, meta[i], d])
+        p.dump(N_query, open(outpath, "w"))
+        return N_query
+
     def BP_with_strings(self):
         print "running BP"
         LBP_MAX_ITERS = int(self.config.get("FunctionName", "LBP_MAX_ITERS"))
         threshold = float(self.config.get("FunctionName", "THRESHOLD"))
+        threshold_2gram = float(self.config.get("FunctionName", "THRESHOLD_2GRAM"))
         g = fg.Graph()
         global_node_dict = dict()
         global_edge_dict = dict()
@@ -125,23 +165,22 @@ class TestBinary(Binary):
 
         global_node_dict, global_prior_dict = get_node_prior_belief(query_1gram, threshold)
         for i in query_2gram:
-            if i[2] > threshold:
-                if not hasDistance:
-                    test_src = i[0][0]
-                    test_des = i[0][1]
-                else:
-                    test_src = i[0][0][0]
-                    test_des = i[0][0][1]
-                if test_src == test_des:
-                    continue
-    #             # initialize the dictionary
-                if not global_node_dict.has_key(test_src):
-                    global_node_dict[test_src] = []
-                if not global_node_dict.has_key(test_des):
-                    global_node_dict[test_des] = []
-                if not global_edge_dict.has_key((test_src, test_des)):
-                    global_edge_dict[(test_src, test_des)] = []
-
+            if not hasDistance:
+                test_src = i[0][0]
+                test_des = i[0][1]
+            else:
+                test_src = i[0][0][0]
+                test_des = i[0][0][1]
+            if test_src == test_des:
+                continue
+              # initialize the dictionary
+            if not global_node_dict.has_key(test_src):
+                global_node_dict[test_src] = []
+            if not global_node_dict.has_key(test_des):
+                global_node_dict[test_des] = []
+            if not global_edge_dict.has_key((test_src, test_des)):
+                global_edge_dict[(test_src, test_des)] = []
+            if i[2] > threshold_2gram:
                 funcList = i[1]
                 for predicted_func in funcList:
                     if hasDistance:
@@ -167,15 +206,22 @@ class TestBinary(Binary):
                         global_edge_dict[(test_src, test_des)].append((src_funcname, des_funcname, libraryname))
                         if global_sim_dict[(src_funcname, des_funcname, libraryname)] < i[2]:
                             global_sim_dict[(src_funcname, des_funcname, libraryname)] = i[2]
-
+                        
+        edges = [['test_src', 'test_des', 'src_funcname', 'des_funcname', 'libraryname', 'sim']]
+        for (test_src, test_des) in global_edge_dict.keys():
+            edges.append([test_src, test_des, '', '', '', ''])
+            for (src_funcname, des_funcname, libraryname) in global_edge_dict[(test_src, test_des)]:
+                edges.append([test_src, test_des, src_funcname, des_funcname, libraryname, global_sim_dict[(src_funcname, des_funcname, libraryname)]])
+        
+        print_CSV(edges, 'example/edges.csv')
         string_count = defaultdict(int)
         # add functions as random variables and add factors between function and string nodes
         for key in global_node_dict:
             rvlabels[test_src].append('None')
             length = len(global_node_dict[key])
             if length > 0:
-                #rv_func = g.rv(key, length + 1, prior = global_prior_dict[key])
-                rv_func = g.rv(key, length + 1)
+                rv_func = g.rv(key, length + 1, prior = global_prior_dict[key])
+                #rv_func = g.rv(key, length + 1)
             else:
                 rv_func = g.rv(key, length + 1) # None label is the last item
             for idx, (prediction, library) in enumerate(global_node_dict[key]):
@@ -225,7 +271,7 @@ class TestBinary(Binary):
             probability1 = None
 
             if test_src != test_des:
-                pot=np.full((len(src_list), len(des_list)), 0.01)
+                pot=np.full((len(src_list), len(des_list)), 0.1)
                 #pot[-1, -1] = 0.1
                 factor1 = g.factor([src_rv, des_rv], potential=pot, name = '')
                 probability1 = factor1.get_potential()
@@ -240,10 +286,13 @@ class TestBinary(Binary):
                         probability1[src_ind, des_ind] = 0.9
                     else:
                         probability1[des_ind, src_ind] = 0.9
-    #         else:
-    #             if len(src_list) > 0 and len(des_list) > 0:
-    #                 probability1[:, -1] = 0.3
-    #                 probability1[-1, :] = 0.3
+            else:
+                if len(src_list) > 0 and len(des_list) > 0:
+                    src_lib = set([i[1] for i in src_list])
+                    des_lib = set([i[1] for i in des_list])
+                    if src_lib == des_lib:
+                        probability1[:, -1] = 0.2
+                        probability1[-1, :] = 0.2
 
             factor1.set_potential(probability1)
 
@@ -330,15 +379,15 @@ class TestBinary(Binary):
                     final_prediction.append([key, func, lib, version_prediction[key]])
             if 'None' in label and len(label)==1:
                 n += 1
-            elif key in label and set(libraries) & set(version_prediction[key]) != set():
+            elif key in label:# and set(libraries) & set(version_prediction[key]) != set():
                 count += 1
                 correct_set.add(key)
                 f += len(label)-1
             else:
                 f += len(label)
-        print 'precision', '\t', 'recall:'
-        print count*1.0/(len(keylist)-n), '\t', count*1.0/librarynames
-        final_prediction.append(['Precision:', count*1.0/(len(keylist)-n), 'Recall:', count*1.0/librarynames])
+        print 'correct prediction', '\t', 'wrong prediction', '\t', 'precision', '\t', 'recall:'
+        print count, '\t', f, '\t', count*1.0/(count + f), '\t', count*1.0/librarynames
+        final_prediction.append(['Precision:', count*1.0/(count + f), 'Recall:', count*1.0/librarynames])
         return final_prediction
 
 def counting(query_1gram, funcprediction, threshold):

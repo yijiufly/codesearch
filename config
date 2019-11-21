@@ -1,6 +1,7 @@
 [FunctionName]
 THRESHOLD = 0.95
 LBP_MAX_ITERS = 40
+THRESHOLD_2GRAM = 0.9
 
 
 [Versions]

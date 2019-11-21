@@ -4,7 +4,6 @@ import pdb
 import numpy as np
 import traceback
 import os
-from sslh.test_SSLH_inference import runBP
 from collections import Counter
 
 class Binary:
