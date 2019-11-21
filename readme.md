@@ -20,6 +20,10 @@ lib/
 
 python main.py --mode=Indexing --path=None --name=None
 
+## To build Faiss index
+python main.py --mode=IndexingFaiss --path=None --name=None
+(examples in /example_lib)
+
 ## To do query for Test Binaries
 An example in /example, can try it out even without the LSH database (query result already included)
   1. first, unzip test_kNN_1112_2gram.p.zip, the original file is too large
