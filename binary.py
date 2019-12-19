@@ -11,7 +11,10 @@ class Binary:
         raise NotImplementedError
 
     def loadCallGraph(self, path, name_path):
-        self.graph = pydot.graph_from_dot_file(path)
+        if path[-3:] == 'dot':
+            self.graph = pydot.graph_from_dot_file(path)
+        else:
+            self.calledge = p.load(open(path, 'r'))
         print('graph loaded')
         funcNameList = p.load(open(name_path, 'r'))
         func2ind = dict()
@@ -81,13 +84,20 @@ class Binary:
         self.callgraphEdges = linklistgraph
 
     def getGraphFromPathfilted(self):
-        edgeList = self.graph.get_edge_list()
+        if hasattr(self, 'graph'):
+            edgeList = self.graph.get_edge_list()
+        else:
+            edgeList = self.calledge
         linklistgraph = dict()
         smallnodes = dict()
         #self.callgraphEdges = []
         for edge in edgeList:
-            src = edge.get_source().strip('\"')
-            des = edge.get_destination().strip('\"')
+            if type(edge) == type([]):
+                src = edge[0].strip('\"')
+                des = edge[1].strip('\"')
+            else:
+                src = edge.get_source().strip('\"')
+                des = edge.get_destination().strip('\"')
             if src not in self.funcNameFilted or des not in self.funcNameFilted:
                 continue
             if self.funcNameFilted[src] == -1:

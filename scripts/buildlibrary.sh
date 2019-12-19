@@ -30,6 +30,7 @@ do
   rm -rf *.tar.gz
   cd $openssl
   ./config no-shared
+  #CFLAGS=-fPIC ./config shared
   make
   cd ..
   cp $openssl/libcrypto.a openssl/$openssl

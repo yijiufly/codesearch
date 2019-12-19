@@ -16,10 +16,10 @@ begin=$(date +%s)
 function generate_emb()
 {
 	echo "Generating file " $1/$2
-	python3 Gemini/embedding/preprocessemb.py $1/$2
+	python3 Gemini/embedding/preprocessemb.py $1/$2 libjpeg True
 }
 
-dir=/home/yijiufly/Downloads/codesearch/data/zlib/zlib-O2
+dir=/home/yijiufly/Downloads/codesearch/data/mupdf/libjpeg-test
 #dir=/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx
 #dir=/home/yijiufly/Downloads/codesearch/data/openssl
 home=$PWD

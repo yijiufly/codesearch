@@ -70,18 +70,25 @@ def addattributeforBP():
     print count1, count2, count3, count4
 
 def addattributeforfunctions():
-    path = '/home/yijiufly/Downloads/codesearch/BP.dot'
+    path = '/home/yijiufly/Downloads/codesearch/data/mupdf/MUPDF-all/mupdf-1.15.0/mutool_bn.dot'
     graph = pydot.graph_from_dot_file(path)
     nodeList = graph.get_node_list()
-    dir_openssl = '/home/yijiufly/Downloads/codesearch/data/openssl/'
-    folder = 'openssl-OpenSSL_1_0_1d/'
-    nam = 'libcrypto.so.ida_newmodel_withsize.nam'
-    sslnam = 'libssl.so.ida_newmodel_withsize.nam'
-    names = p.load(open(dir_openssl+folder+sslnam, 'r'))
-    names.extend(p.load(open(dir_openssl+folder+nam, 'r')))
-    name = [i[0] for i in names]
-    none_nodes = p.load(open('../wrong_predictions', 'r'))
-    wrong_nodes = p.load(open('../wrong_nodes', 'r'))
+    dir_freetype2 = '/home/yijiufly/Downloads/codesearch/data/mupdf/freetype2-test/VER-2-9-1/'
+    nam = 'libfreetype.so_newmodel_withsize.nam'
+    names = p.load(open(dir_freetype2+nam, 'r'))
+    ft_name = [i[0] for i in names]
+    dir_jpeg = '/home/yijiufly/Downloads/codesearch/data/mupdf/libjpeg-test/v9-pre/'
+    nam = 'libjpeg.so_newmodel_withsize.nam'
+    names = p.load(open(dir_jpeg+nam, 'r'))
+    jpeg_name = [i[0] for i in names]
+    import csv
+    with open('/home/yijiufly/Downloads/codesearch/data/mupdf/MUPDF-all/mupdf-1.15.0/out_prediction1120_BP.csv', 'rb') as f:
+        reader = csv.reader(f)
+        prediction = list(reader)
+    wrong_nodes = set()
+    for line in prediction:
+        if line[-1] == 'False':
+            wrong_nodes.add(line[0])
     # correctname = []
     # for key in prediction:
     #     pred = [i[0][0] for i in prediction[key]]
@@ -89,14 +96,12 @@ def addattributeforfunctions():
     #         correctname.append(key)
     for node in nodeList:
         nodename = node.get_name().strip('\"')
-        if nodename in name:
+        if nodename in ft_name:
             node.obj_dict['attributes']['class']=0
-        else:
+        elif nodename in jpeg_name:
             node.obj_dict['attributes']['class']=1
-        if nodename in none_nodes:
-            node.obj_dict['attributes']['prediction']=1
         else:
-            node.obj_dict['attributes']['prediction']=0
+            node.obj_dict['attributes']['class']=2
         if nodename in wrong_nodes:
             node.obj_dict['attributes']['wrong_nodes']=1
         else:

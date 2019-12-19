@@ -1,7 +1,7 @@
 [FunctionName]
 THRESHOLD = 0.95
 LBP_MAX_ITERS = 40
-THRESHOLD_2GRAM = 0.9
+THRESHOLD_2GRAM = 0.8
 
 
 [Versions]
@@ -10,7 +10,7 @@ THRESHOLD = 0.9999
 
 [Mongodb]
 DBNAME = oss
-TABLENAME = library_stringtable
+TABLENAME = library_stringTable
 
 
 [TwoGramRedis]
@@ -39,5 +39,5 @@ PROJECTIONS = 40
 
 
 [GroundTruth]
-LIBRARYFUNCTOTAL = 2982
+LIBRARYFUNCTOTAL = 1067
 VERSIONS = ['openssl-1.0.1d', 'zlib-1.2.11']

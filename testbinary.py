@@ -17,7 +17,8 @@ import numpy as np
 import csv
 import sys
 sys.path.insert(0, "faiss/python")
-import faiss   
+import faiss
+import time
 class TestBinary(Binary):
     def __init__(self, binaryName, binFolder, dotPath, embFile, namFile, strFile, filterSize=0, configPath='config'):
         print 'init testing binary'
@@ -52,8 +53,8 @@ class TestBinary(Binary):
 
         self.stringTable = stringTable
         self.mongodb = mongodb
-        candidateOutput1Gram = os.path.join(self.binFolder, 'test_kNN_1120_1gram.p')
-        candidateOutput2Gram = os.path.join(self.binFolder, 'test_kNN_1120_2gram.p')
+        candidateOutput1Gram = os.path.join(self.binFolder, 'test_kNN_1125_1gram.p')
+        candidateOutput2Gram = os.path.join(self.binFolder, 'test_kNN_1127_2gram.p')
         predictionOutput = os.path.join(self.binFolder, 'out_prediction1120_BP.csv')
 
         if os.path.isfile(candidateOutput1Gram) and os.path.isfile(candidateOutput2Gram):
@@ -61,13 +62,18 @@ class TestBinary(Binary):
             knn2Gram = p.load(open(candidateOutput2Gram, 'rb'))
         else:
             self.loadBinary()
+            start_time = time.time()
             knn1Gram = self.queryForOneBinary1GramFaiss(candidateOutput1Gram)
+            print("--- %s seconds ---" % (time.time() - start_time))
+            start_time = time.time()
             knn2Gram = self.queryForOneBinary2GramFaiss(candidateOutput2Gram)
+            print("--- %s seconds ---" % (time.time() - start_time))
         self.knn1Gram = knn1Gram
         self.knn2Gram = knn2Gram
 
+        start_time = time.time()
         funcprediction = self.BP_with_strings()
-
+        print("--- %s seconds ---" % (time.time() - start_time))
         print_CSV(funcprediction, predictionOutput)
 
 
@@ -114,8 +120,8 @@ class TestBinary(Binary):
 
 
     def queryForOneBinary1GramFaiss(self, outpath):
-        index = faiss.read_index("funcemb_aftergrouping_cosine.index")
-        meta = p.load(open('funcmetadata_aftergrouping_cosine.p', 'r'))
+        index = faiss.read_index("funcemb_aftergrouping_cosine2.index")
+        meta = p.load(open('funcmetadata_aftergrouping_cosine2.p', 'r'))
         nodes = []
         query = []
         for key in self.funcNameFilted.keys():
@@ -133,15 +139,17 @@ class TestBinary(Binary):
         return N_query
 
     def queryForOneBinary2GramFaiss(self, outpath):
-        index = faiss.read_index("2gram_aftergrouping_cosine.index")
-        meta = p.load(open('2grammetadata_aftergrouping_cosine.p', 'r'))
+        index = faiss.read_index("2gram_mupdf.index")
+        meta = p.load(open('2grammetadata_mupdf.p', 'r'))
+        # index = faiss.read_index("tmp/2gramemb.index")
+        # meta = p.load(open('tmp/2grammetadata.p', 'r'))
         nodes = []
         query = []
         for [twogram, name, distance] in self.twoGramList:
             nodes.append((name, distance))
             query.append(twogram)
         query_norm = query / np.linalg.norm(query, axis=1)[:,None]
-        D, I = index.search(np.array(query_norm), 10)
+        D, I = index.search(np.array(query_norm), 20)
         N_query = []
         for query_node, distances, indexes in zip(nodes, D, I):
             for d, i in zip(distances, indexes):
@@ -168,18 +176,24 @@ class TestBinary(Binary):
             if not hasDistance:
                 test_src = i[0][0]
                 test_des = i[0][1]
+                #test_des2 = i[0][2]
             else:
                 test_src = i[0][0][0]
                 test_des = i[0][0][1]
-            if test_src == test_des:
-                continue
+                #test_des2 = i[0][0][2]
+            # if test_src == test_des:
+            #     continue
               # initialize the dictionary
             if not global_node_dict.has_key(test_src):
                 global_node_dict[test_src] = []
             if not global_node_dict.has_key(test_des):
                 global_node_dict[test_des] = []
+            # if not global_node_dict.has_key(test_des2):
+            #     global_node_dict[test_des2] = []
             if not global_edge_dict.has_key((test_src, test_des)):
                 global_edge_dict[(test_src, test_des)] = []
+            # if not global_edge_dict.has_key((test_des, test_des2)):
+            #     global_edge_dict[(test_des, test_des2)] = []
             if i[2] > threshold_2gram:
                 funcList = i[1]
                 for predicted_func in funcList:
@@ -191,21 +205,32 @@ class TestBinary(Binary):
 
                     src_funcname = predicted_func[2][0]
                     des_funcname = predicted_func[2][1]
+                    #des2_funcname = predicted_func[2][2]
                     libraryname = predicted_func[0]
 
                     # find the src function if it's already in the dict,
-                    # otherwise, add it to the dict
+                    # if it's not, meaning that 1-gram matching didn't find it, so don't add it
                     if (src_funcname, libraryname) not in global_node_dict[test_src]:
                         continue
                     # do the same thing to des function
                     if (des_funcname, libraryname) not in global_node_dict[test_des]:
                         continue
+                    
+                    # if (des2_funcname, libraryname) not in global_node_dict[test_des2]:
+                    #     continue
 
                     # add this edge to the edge dictionary
-                    if (src_funcname, des_funcname, libraryname) not in global_edge_dict[(test_src, test_des)]:
-                        global_edge_dict[(test_src, test_des)].append((src_funcname, des_funcname, libraryname))
-                        if global_sim_dict[(src_funcname, des_funcname, libraryname)] < i[2]:
-                            global_sim_dict[(src_funcname, des_funcname, libraryname)] = i[2]
+                    if test_src != test_des:
+                        if (src_funcname, des_funcname, libraryname) not in global_edge_dict[(test_src, test_des)]:
+                            global_edge_dict[(test_src, test_des)].append((src_funcname, des_funcname, libraryname))
+                            if global_sim_dict[(src_funcname, des_funcname, libraryname)] < i[2]:
+                                global_sim_dict[(src_funcname, des_funcname, libraryname)] = i[2]
+
+                    # if test_des != test_des2:
+                    #     if (des_funcname, des2_funcname, libraryname) not in global_edge_dict[(test_des, test_des2)]:
+                    #         global_edge_dict[(test_des, test_des2)].append((des_funcname, des2_funcname, libraryname))
+                    #         if global_sim_dict[(des_funcname, des2_funcname, libraryname)] < i[2]:
+                    #             global_sim_dict[(des_funcname, des2_funcname, libraryname)] = i[2]
                         
         edges = [['test_src', 'test_des', 'src_funcname', 'des_funcname', 'libraryname', 'sim']]
         for (test_src, test_des) in global_edge_dict.keys():
@@ -213,7 +238,7 @@ class TestBinary(Binary):
             for (src_funcname, des_funcname, libraryname) in global_edge_dict[(test_src, test_des)]:
                 edges.append([test_src, test_des, src_funcname, des_funcname, libraryname, global_sim_dict[(src_funcname, des_funcname, libraryname)]])
         
-        print_CSV(edges, 'example/edges.csv')
+        print_CSV(edges, 'tmp/edges.csv')
         string_count = defaultdict(int)
         # add functions as random variables and add factors between function and string nodes
         for key in global_node_dict:
@@ -231,11 +256,13 @@ class TestBinary(Binary):
                 else:
                     query = self.mongodb.load({"name": prediction})
                     if not query:
-                        string_list = []
+                        string_set = set()
                     else:
-                        string_list = query['strings']
-                    string_shared = set(self.stringTable[key]) & set(string_list)
-                    string_differ = set(self.stringTable[key]) | set(string_list) - string_shared
+                        string_set = set()
+                        for item in query:
+                            string_set |= set(item['strings'])
+                    string_shared = set(self.stringTable[key]) & string_set
+                    string_differ = set(self.stringTable[key]) | string_set - string_shared
 
                 for string in string_shared:
                     count = string_count[string]
@@ -275,6 +302,8 @@ class TestBinary(Binary):
                 #pot[-1, -1] = 0.1
                 factor1 = g.factor([src_rv, des_rv], potential=pot, name = '')
                 probability1 = factor1.get_potential()
+            else:
+                continue
 
             # if there is an matching edge
             if len(global_edge_dict[(test_src, test_des)]) > 0:
@@ -287,23 +316,40 @@ class TestBinary(Binary):
                     else:
                         probability1[des_ind, src_ind] = 0.9
             else:
-                if len(src_list) > 0 and len(des_list) > 0:
+                if len(src_list) > 1 and len(des_list) > 1:
                     src_lib = set([i[1] for i in src_list])
                     des_lib = set([i[1] for i in des_list])
+                    # print test_src, test_des
+                    # print len(src_list), len(des_list)
                     if src_lib == des_lib:
-                        probability1[:, -1] = 0.2
-                        probability1[-1, :] = 0.2
+                        probability1[:, -1] = 0.9
+                        probability1[-1, :] = 0.9
+                # else:
+                #     probability1[-1, -1] = 0.9
+
 
             factor1.set_potential(probability1)
 
-        iters, converged = g.lbp(global_node_dict, normalize=True, max_iters=LBP_MAX_ITERS, progress=False)
         g.global_dict = global_node_dict
+        iters, converged = g.lbp(global_node_dict, normalize=True, max_iters=0, progress=False)   
+        print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
+        results = g.get_func_prediction(normalize=True)
+        
+        
+        # count for libraries and versions
+        #counts = counting(query_1gram, results, threshold)
+        version_predict = self.get_versions_through_components(query_1gram, results, global_edge_dict, threshold)
+        functionpredict, correct_set = self.precision_and_recall(results, version_predict)
+        print_CSV(functionpredict,  os.path.join(self.binFolder, 'out_prediction1120_Baseline.csv'))
+
+        iters, converged = g.lbp(global_node_dict, normalize=True, max_iters=LBP_MAX_ITERS, progress=False)   
         print 'LBP ran for %d iterations. Converged = %r' % (iters, converged)
         results = g.get_func_prediction(normalize=True)
         # count for libraries and versions
         #counts = counting(query_1gram, results, threshold)
         version_predict = self.get_versions_through_components(query_1gram, results, global_edge_dict, threshold)
-        functionpredict = self.precision_and_recall(results, version_predict)
+        functionpredict, correct_set2 = self.precision_and_recall(results, version_predict)
+        print correct_set-correct_set2
         return functionpredict
 
     def get_versions_through_components(self, query_1gram, funcprediction, global_edge_dict, threshold):
@@ -311,6 +357,8 @@ class TestBinary(Binary):
         for [(name, distance), predict, sim] in query_1gram:
             if sim > threshold:
                 for [lib, version, func] in predict:
+                    if lib == 'libcrypto' or lib == 'libssl':
+                        lib = 'openssl'
                     if (func, lib) not in funcprediction[name]:
                         continue
                     prediction[name].add(version)
@@ -344,9 +392,12 @@ class TestBinary(Binary):
 
         # get the components
         for component in groups:
+            #pdb.set_trace()
             votes = Counter()
             for element in groups[component]:
                 votes += Counter(prediction[element])
+                if 'openssl-1.0.1f' in prediction[element] and 'openssl-1.0.1d' not in prediction[element]:
+                    print element
             sorted_count = sorted(votes.items(), key=lambda x: x[1], reverse=True)
             versions = list(filter(lambda x: x[1] >= sorted_count[0][1], sorted_count))
 
@@ -369,14 +420,17 @@ class TestBinary(Binary):
         f = 0
         keylist = name_prediction.keys()
         correct_set = set()
-        final_prediction = [['Query Func', 'Prediction', 'Library', 'Version']]
+        final_prediction = [['Query Func', 'Prediction', 'Library', 'Version','Correctness']]
         for key in keylist:
             funclist = name_prediction[key]
             label=set()
             for (func, lib) in funclist:
                 label.add(func)
                 if func != 'None':
-                    final_prediction.append([key, func, lib, version_prediction[key]])
+                    if key == func:
+                        final_prediction.append([key, func, lib, version_prediction[key], 'True'])
+                    else:
+                        final_prediction.append([key, func, lib, version_prediction[key], 'False'])
             if 'None' in label and len(label)==1:
                 n += 1
             elif key in label:# and set(libraries) & set(version_prediction[key]) != set():
@@ -387,8 +441,9 @@ class TestBinary(Binary):
                 f += len(label)
         print 'correct prediction', '\t', 'wrong prediction', '\t', 'precision', '\t', 'recall:'
         print count, '\t', f, '\t', count*1.0/(count + f), '\t', count*1.0/librarynames
+        print count, '\t', f, '\t', count*1.0/(len(keylist)-n), '\t', count*1.0/librarynames
         final_prediction.append(['Precision:', count*1.0/(count + f), 'Recall:', count*1.0/librarynames])
-        return final_prediction
+        return final_prediction, correct_set
 
 def counting(query_1gram, funcprediction, threshold):
     hasDistance = True
@@ -419,16 +474,25 @@ def getRank(prediction):
     for (func, sim) in predict:
         if np.isclose(sim, lastsim):
             predicts.append(func)
-            ranks.append(rank)
+            if sim > 0.99:
+                ranks.append(rank + 10)
+            else:
+                ranks.append(rank)
         else:
             predicts.append(func)
-            ranks.append(rank)
-            rank += 1
+            if sim > 0.99:
+                ranks.append(rank + 10)
+            else:
+                ranks.append(rank)
+                rank += 1
         lastsim = sim
-    sm = softmax(range(ranks[-1]+1))
+    if lastsim < 0.99:
+        ranks.append(ranks[-1])
+    else:
+        ranks.append(1)
+    sm = softmax(ranks)
     for i in range(len(ranks)):
-        ranks[i] = sm[ranks[i]]
-    ranks.append(sm[0])
+        ranks[i] = sm[i]
     return predicts, ranks
 
 def softmax(x):
@@ -440,6 +504,8 @@ def get_node_prior_belief(knn_all, threshold):
     for [(name, distance), predict, sim] in knn_all:
         if sim > threshold:
             for [lib, version, func] in predict:
+                if lib == 'libcrypto' or lib == 'libssl':
+                    lib = 'openssl'
                 prediction[name].add((func, lib))
                 if sim_dict[(name, func, lib)] < sim:
                     sim_dict[(name, func, lib)] = sim
@@ -452,10 +518,24 @@ def get_node_prior_belief(knn_all, threshold):
 
     global_dict = defaultdict(list)
     global_beliefs = defaultdict(list)
+    # pdb.set_trace()
     for func in prediction_with_sim.keys():
         predicts, beliefs = getRank(prediction_with_sim[func])
         global_dict[func] = predicts
         global_beliefs[func] = beliefs
+    # for name in prediction.keys():
+    #     sim_list = []
+    #     prediction_list = []
+    #     smallest = 1.0
+    #     for (func, lib) in prediction[name]:
+    #         sim = sim_dict[(name, func, lib)]
+    #         if sim < smallest:
+    #             smallest = sim
+    #         sim_list.append(sim)
+    #         prediction_list.append((func, lib))
+    #     sim_list.append(smallest)
+    #     global_dict[name] = prediction_list
+    #     global_beliefs[name] = list(softmax(sim_list))
 
     return global_dict, global_beliefs
 

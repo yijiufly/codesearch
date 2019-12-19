@@ -10,6 +10,8 @@ import multiprocessing
 import binaryninja as binja
 from collections import defaultdict
 from obj import Obj
+from progressbar import ProgressBar
+pbar = ProgressBar()
 
 CALL_INST = {binja.LowLevelILOperation.LLIL_CALL, binja.LowLevelILOperation.LLIL_CALL_PARAM,
              binja.LowLevelILOperation.LLIL_CALL_OUTPUT_SSA, binja.LowLevelILOperation.LLIL_CALL_SSA,
@@ -38,6 +40,120 @@ class BasicBlockMap(dict):
         self[key] = v
         return v
 
+class NewBasicBlock():
+    def __init__(self, start):
+        self.start = start
+        self.instructions = []
+        self.outgoing_edges = []
+
+    def add_instructions(self, ins):
+        self.instructions.append(ins)
+
+    def add_outgoing_edges(self, edge):
+        self.outgoing_edges.append(edge)
+
+
+class NewFunction():
+    def __init__(self, start, name):
+        self.start = start
+        self.name = name
+        self.basic_blocks = []
+
+    def add_basic_block(self, bb):
+        self.basic_blocks.append(bb)
+
+
+def funinlining(bv, usable_encoder):
+    raw_graph_list = []
+    imported_start = bv.sections['.plt'].start
+    imported_end = bv.sections['.plt'].end
+    for func in pbar(bv.functions):
+        new_func = NewFunction(func.start, func.name)
+        for block in func:
+            current_block = NewBasicBlock(block.start)
+
+            # text = block.disassembly_text
+            current_idx = 0
+            # if len(text[0].tokens) > 1 and text[0].tokens[1].text == ':':
+            #     current_idx += 1
+            # current_idx_source = 0
+            current_addr = block.start
+            call_in_last = False
+            for instr in block:
+                # if current_idx_source >= block.source_block.instruction_count:
+                #     break
+                # current_addr = text[current_idx].address
+                current_idx += 1
+                # if encounter a calling instruction
+                # if instr.operation == binja.LowLevelILOperation.LLIL_CALL:
+                #     if instr.dest.operation == binja.LowLevelILOperation.LLIL_CONST_PTR:
+                # other cases just add the instruction to the current block
+                current_block.add_instructions(instr)
+                current_addr += instr[1]
+
+                if instr[0][0].text == 'call':
+                    # add callee address to caller block's outgoing edges
+                    try:
+                        addr = int(instr[0][2].text, 16)
+                    except:
+                        continue
+                    # if addr in range(imported_start, imported_end):
+                    #     continue
+                    current_block.add_outgoing_edges(addr)
+                    # end the processing of current block, add it to function
+                    new_func.add_basic_block(current_block)
+                    
+                    # now doing the inlining
+                    callee = bv.get_function_at(addr)
+                    if callee is None:
+                        continue
+                    for callee_block in callee.low_level_il.basic_blocks:
+                        current_block = NewBasicBlock(callee_block.source_block.start)
+                        
+                        # add all outgoing edges of current block
+                        for edge in callee_block.source_block.outgoing_edges:
+                            current_block.add_outgoing_edges(edge.target.start)
+
+                        for callee_instr in callee_block:
+                            if callee_instr.operation == binja.LowLevelILOperation.LLIL_RET:
+                                if current_idx < block.instruction_count:
+                                    current_block.add_outgoing_edges(current_addr)
+                                else:
+                                    for edge in block.source_block.outgoing_edges:
+                                        current_block.add_outgoing_edges(edge.target.start)
+                                    call_in_last = True
+
+                        for callee_instr in callee_block.source_block:
+                            current_block.add_instructions(callee_instr)
+                        
+                        new_func.add_basic_block(current_block)
+
+                    current_block = NewBasicBlock(current_addr)
+                        
+            if not call_in_last:
+                for edge in block.source_block.outgoing_edges:
+                    current_block.add_outgoing_edges(edge.target.start)
+
+            new_func.add_basic_block(current_block)
+        
+        bb_map = BasicBlockMap()
+
+        edge_list = build_neighbors(new_func, bb_map)
+        fvec_list = [0] * len(bb_map)
+
+        for block in new_func.basic_blocks:
+            fv_list = calc_st_embeddings(usable_encoder, bv, block)
+            fvec_list[bb_map[block.start]] = fv_list
+            del block
+
+        del new_func
+
+        acfg = Obj()
+        acfg.fv_list = fvec_list
+        acfg.funcname = func.name
+        acfg.edge_list = edge_list
+        raw_graph_list.append(acfg)    
+    return raw_graph_list
 
 def parse_instruction(ins):
 
@@ -46,11 +162,15 @@ def parse_instruction(ins):
     return ','.join(parts)
 
 
-def calc_st_embeddings(usable_encoder: utils.UsableEncoder, bv: binja.BinaryViewType, block: binja.BasicBlock):
+def calc_st_embeddings(usable_encoder: utils.UsableEncoder, bv: binja.BinaryViewType, block: NewBasicBlock):
     text = []
     idx = block.start
-    for inst in block:
-        text.append(parse_instruction(bv.get_disassembly(idx)))
+    for inst in block.instructions:
+        try:
+            text.append(parse_instruction(bv.get_disassembly(idx)))
+        except:
+            text.append('')
+            print(inst)
         idx += inst[1]
     if text:
         embd = usable_encoder.encode(text).sum(axis=0) / len(text)
@@ -98,12 +218,12 @@ def calc_descendents(block: binja.BasicBlock):
     return cnt
 
 
-def build_neighbors(func: binja.Function, bb_map: BasicBlockMap):
+def build_neighbors(func: NewFunction, bb_map: BasicBlockMap):
     edge_list = []
-    for block in func:
+    for block in func.basic_blocks:
         src_id = bb_map[block.start]
         for edge in block.outgoing_edges:
-            dst_id = bb_map[edge.target.start]
+            dst_id = bb_map[edge]
             edge_list.append((src_id, dst_id))
     return edge_list
 
@@ -136,38 +256,31 @@ def get_strings_per_function(bv):
     return string_dict
 
 
-
 def disassemble(path):
-    bv = binja.BinaryViewType.get_view_of_file(path)
-    binja.log_to_stdout(True)
+    if type(path) == type(''):
+        s = time.time()
+        bv = binja.BinaryViewType.get_view_of_file(path)
+        elapse = time.time() - s
+        print('generate bv--', elapse)
+    else:
+        bv = path
+        binja.log_to_stdout(True)
 
     usable_encoder = utils.UsableEncoder()
     s = time.time()
-
-    raw_graph_list = []
-    for func in bv.functions:
-        bb_map = BasicBlockMap()
-
-        edge_list = build_neighbors(func, bb_map)
-        fvec_list = [0] * len(bb_map)
-
-        for block in func:
-            # fv_list = calc_statistics(func, block)
-            fv_list = calc_st_embeddings(usable_encoder, bv, block)
-            fvec_list[bb_map[block.start]] = fv_list
-
-        acfg = Obj()
-        acfg.fv_list = fvec_list
-        acfg.funcname = func.name
-        acfg.edge_list = edge_list
-        raw_graph_list.append(acfg)
+    raw_graph_list = funinlining(bv, usable_encoder)
+    elapse = time.time() - s
+    print('do func inlining--', elapse)
+    
     acfgs = Obj()
     acfgs.raw_graph_list = raw_graph_list
 
     elapse = time.time() - s
     print('-------', elapse)
-    string_dict = get_strings_per_function(bv)
+    #string_dict = get_strings_per_function(bv)
+    string_dict = dict()
     return acfgs, string_dict
+
 
 def _worker(q, target, args):
     ret = target(args)
@@ -193,15 +306,14 @@ def run_process_with_timeout(target, args, timeout=3600):
         q.close()
 
 if __name__ == '__main__':
-    #for dir in os.listdir('/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx'):
-    #    ida_path = '/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/'+dir+'/'+dir
-    #for ida_path in glob.iglob(r'/home/yijiufly/Downloads/codesearch/data/nginx/openssl-1.0.1d/objfiles/*.o'):
-    for ida_path in glob.iglob(r'/home/yijiufly/Downloads/codesearch/data/openssl/openssl-1.0.1d/objfiles*/*.o'):
+    for ida_path in glob.iglob(r'/home/yijiufly/Downloads/codesearch/data/versiondetect/test3/nginx/nginx-{openssl-1.0.1d}{zlib-1.2.11}/nginx-{openssl-1.0.1d}{zlib-1.2.11}'):
+    #for ida_path in glob.iglob(r'/home/yijiufly/Downloads/codesearch/data/mupdf/libjpeg-test/v7/objfiles/*.o'):
         # if not os.path.splitext(ida_path)[-1]:
         print(ida_path)
         start = time.time()
-        acfgs, string_dict = run_process_with_timeout(disassemble, ida_path)
+        #acfgs, string_dict = run_process_with_timeout(disassemble, ida_path)
+        acfgs, string_dict = disassemble(ida_path)
         elapse = time.time() - start
         print(ida_path, elapse)
-        pickle.dump(acfgs, open(ida_path + '.ida', 'wb'),protocol=2)
-        pickle.dump(string_dict, open(ida_path + '.str', 'wb'),protocol=2)
+        pickle.dump(acfgs, open(ida_path + 'inline_withimportfunc.ida', 'wb'),protocol=2)
+        #pickle.dump(string_dict, open(ida_path + '.str', 'wb'),protocol=2)
