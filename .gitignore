@@ -16,3 +16,4 @@ rawfeatureextractor/
 osspolice/
 *.p
 *.index
+test*/
